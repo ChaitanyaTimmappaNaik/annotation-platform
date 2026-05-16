@@ -1,0 +1,213 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <link rel="icon" type="image/svg+xml" href="/vite.svg" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>AnnotateHub</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script>
+      tailwind.config = {
+        theme: {
+          extend: {
+            colors: {
+              aws: {
+                orange: '#FF9900',
+                darkorange: '#EC7211',
+                blue: '#0073BB',
+                darkblue: '#005A8A',
+                navy: '#232F3E',
+                lightgray: '#F2F3F3',
+                gray: '#687078',
+                border: '#D5DBDB',
+                green: '#1D8102',
+                red: '#D13212',
+              }
+            },
+            fontFamily: {
+              sans: ['Amazon Ember', 'Helvetica Neue', 'Arial', 'sans-serif']
+            }
+          }
+        }
+      }
+    </script>
+    <style>
+      * { box-sizing: border-box; }
+      body { font-family: 'Helvetica Neue', Arial, sans-serif; }
+      .aws-btn-primary {
+        background: #FF9900;
+        color: #000;
+        border: 1px solid #EC7211;
+        padding: 6px 16px;
+        border-radius: 2px;
+        font-size: 13px;
+        font-weight: 700;
+        cursor: pointer;
+      }
+      .aws-btn-primary:hover { background: #EC7211; }
+      .aws-btn-normal {
+        background: #fff;
+        color: #0073BB;
+        border: 1px solid #0073BB;
+        padding: 6px 16px;
+        border-radius: 2px;
+        font-size: 13px;
+        cursor: pointer;
+      }
+      .aws-btn-normal:hover { background: #f0f8ff; }
+      .aws-btn-disabled {
+        background: #fff;
+        color: #aab7b8;
+        border: 1px solid #aab7b8;
+        padding: 6px 16px;
+        border-radius: 2px;
+        font-size: 13px;
+        cursor: not-allowed;
+      }
+      .aws-input {
+        border: 1px solid #aab7b8;
+        border-radius: 2px;
+        padding: 6px 10px;
+        font-size: 13px;
+        width: 100%;
+        outline: none;
+      }
+      .aws-input:focus { border-color: #0073BB; box-shadow: 0 0 0 1px #0073BB; }
+      .aws-table th {
+        background: #fafafa;
+        border-bottom: 2px solid #D5DBDB;
+        padding: 8px 16px;
+        text-align: left;
+        font-size: 12px;
+        font-weight: 700;
+        color: #16191f;
+      }
+      .aws-table td {
+        padding: 10px 16px;
+        border-bottom: 1px solid #eaeded;
+        font-size: 13px;
+        color: #16191f;
+      }
+      .aws-table tr:hover td { background: #f8f8f8; }
+      .aws-link { color: #0073BB; text-decoration: none; cursor: pointer; }
+      .aws-link:hover { text-decoration: underline; color: #005A8A; }
+      .aws-badge-available {
+        background: #d5f5e3;
+        color: #1D8102;
+        padding: 2px 8px;
+        border-radius: 2px;
+        font-size: 12px;
+        font-weight: 600;
+      }
+      .aws-badge-progress {
+        background: #d6eaf8;
+        color: #0073BB;
+        padding: 2px 8px;
+        border-radius: 2px;
+        font-size: 12px;
+        font-weight: 600;
+      }
+      .aws-badge-completed {
+        background: #eaeded;
+        color: #687078;
+        padding: 2px 8px;
+        border-radius: 2px;
+        font-size: 12px;
+        font-weight: 600;
+      }
+      .aws-toggle {
+        position: relative;
+        display: inline-block;
+        width: 36px;
+        height: 20px;
+      }
+      .aws-toggle input { display: none; }
+      .aws-toggle-slider {
+        position: absolute;
+        cursor: pointer;
+        top: 0; left: 0; right: 0; bottom: 0;
+        background: #aab7b8;
+        border-radius: 20px;
+        transition: 0.2s;
+      }
+      .aws-toggle input:checked + .aws-toggle-slider { background: #0073BB; }
+      .aws-toggle-slider:before {
+        content: "";
+        position: absolute;
+        height: 14px; width: 14px;
+        left: 3px; bottom: 3px;
+        background: white;
+        border-radius: 50%;
+        transition: 0.2s;
+      }
+      .aws-toggle input:checked + .aws-toggle-slider:before { transform: translateX(16px); }
+      .aws-card {
+        background: white;
+        border: 1px solid #D5DBDB;
+        border-radius: 2px;
+        padding: 20px;
+      }
+      .aws-sidebar-item {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        padding: 8px 16px;
+        font-size: 13px;
+        color: #16191f;
+        cursor: pointer;
+        border-left: 3px solid transparent;
+      }
+      .aws-sidebar-item:hover {
+        background: #f2f3f3;
+        border-left-color: #FF9900;
+      }
+      .aws-sidebar-item.active {
+        background: #f2f3f3;
+        border-left-color: #FF9900;
+        font-weight: 700;
+      }
+      .aws-topnav {
+        background: #232F3E;
+        color: white;
+        padding: 0 20px;
+        height: 40px;
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        font-size: 13px;
+      }
+      .aws-info-banner {
+        background: #F0F8FF;
+        border: 1px solid #0073BB;
+        border-left: 4px solid #0073BB;
+        border-radius: 2px;
+        padding: 12px 16px;
+        font-size: 13px;
+        color: #16191f;
+      }
+      .aws-warning-banner {
+        background: #FEF9E7;
+        border: 1px solid #FF9900;
+        border-left: 4px solid #FF9900;
+        border-radius: 2px;
+        padding: 12px 16px;
+        font-size: 13px;
+      }
+      .aws-error-banner {
+        background: #FDEDEC;
+        border: 1px solid #D13212;
+        border-left: 4px solid #D13212;
+        border-radius: 2px;
+        padding: 12px 16px;
+        font-size: 13px;
+        color: #D13212;
+      }
+      .timer-urgent { color: #D13212; font-weight: 700; animation: blink 1s infinite; }
+      @keyframes blink { 0%, 100% { opacity: 1; } 50% { opacity: 0.5; } }
+    </style>
+  </head>
+  <body class="bg-gray-50">
+    <div id="root"></div>
+    <script type="module" src="/src/main.jsx"></script>
+  </body>
+</html>
