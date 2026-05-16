@@ -60,19 +60,19 @@ class RefreshToken(Base):
 
 class Project(Base):
     __tablename__ = "projects"
-    id            = Column(Integer, primary_key=True, index=True)
-    name          = Column(String(255), nullable=False)
-    description   = Column(Text)
-    data_type     = Column(Enum(DataType), nullable=False)
-    tags          = Column(JSON, default=[])
-    ontology      = Column(JSON, default={})
-    lock_ontology = Column(Boolean, default=False)
-    customer_id   = Column(String(100))
+    id              = Column(Integer, primary_key=True, index=True)
+    name            = Column(String(255), nullable=False)
+    description     = Column(Text)
+    data_type       = Column(Enum(DataType), nullable=False)
+    tags            = Column(JSON, default=[])
+    ontology        = Column(JSON, default={})
+    lock_ontology   = Column(Boolean, default=False)
+    customer_id     = Column(String(100))
     task_time_limit = Column(Integer, default=1800)
-    created_by    = Column(Integer, ForeignKey("users.id"))
-    created_at    = Column(DateTime, default=datetime.utcnow)
-    updated_at    = Column(DateTime, default=datetime.utcnow)
-    tasks         = relationship("Task", back_populates="project")
+    created_by      = Column(Integer, ForeignKey("users.id"))
+    created_at      = Column(DateTime, default=datetime.utcnow)
+    updated_at      = Column(DateTime, default=datetime.utcnow)
+    tasks           = relationship("Task", back_populates="project")
 
 class Task(Base):
     __tablename__ = "tasks"
@@ -113,3 +113,27 @@ class TaskActivityLog(Base):
     created_at  = Column(DateTime, default=datetime.utcnow)
     task        = relationship("Task", back_populates="activity_logs")
     user        = relationship("User", back_populates="activity_logs")
+
+class QueueBatch(Base):
+    __tablename__ = "queue_batches"
+    id              = Column(Integer, primary_key=True, index=True)
+    name            = Column(String(255), nullable=False)
+    project_id      = Column(Integer, ForeignKey("projects.id"))
+    tasks_per_user  = Column(Integer, default=10)
+    time_limit      = Column(Integer, default=1800)
+    status          = Column(String(50), default="active")
+    created_by      = Column(Integer, ForeignKey("users.id"))
+    created_at      = Column(DateTime, default=datetime.utcnow)
+    updated_at      = Column(DateTime, default=datetime.utcnow)
+    assignments     = relationship("BatchAssignment", back_populates="batch")
+
+class BatchAssignment(Base):
+    __tablename__ = "batch_assignments"
+    id               = Column(Integer, primary_key=True, index=True)
+    batch_id         = Column(Integer, ForeignKey("queue_batches.id"))
+    user_id          = Column(Integer, ForeignKey("users.id"))
+    tasks_assigned   = Column(Integer, default=0)
+    tasks_completed  = Column(Integer, default=0)
+    assigned_at      = Column(DateTime, default=datetime.utcnow)
+    batch            = relationship("QueueBatch", back_populates="assignments")
+    user             = relationship("User")

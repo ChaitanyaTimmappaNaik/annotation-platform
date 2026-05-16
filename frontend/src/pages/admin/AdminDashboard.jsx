@@ -5,16 +5,17 @@ import API from "../../api/client";
 function AwsSidebar({ active }) {
   const navigate = useNavigate();
   const items = [
-    { label: "Dashboard", icon: "⊞", path: "/admin/dashboard" },
-    { label: "Projects", icon: "📁", path: "/admin/projects" },
-    { label: "Users", icon: "👥", path: "/admin/users" },
-    { label: "Export", icon: "📤", path: "/admin/export" },
-    { label: "Datasets", icon: "📊", path: "/admin/datasets" },
-    { label: "Ontology", icon: "🏷️", path: "/admin/ontology" },
-    { label: "API Keys", icon: "🔑", path: "/admin/api-keys" },
-    { label: "Settings", icon: "⚙️", path: "/admin/settings" },
-    { label: "Help", icon: "❓", path: "/admin/help" },
-  ];
+  { label: "Dashboard", icon: "⊞", path: "/admin/dashboard" },
+  { label: "Projects", icon: "📁", path: "/admin/projects" },
+  { label: "Batches", icon: "📦", path: "/admin/batches" },
+  { label: "Users", icon: "👥", path: "/admin/users" },
+  { label: "Export", icon: "📤", path: "/admin/export" },
+  { label: "Datasets", icon: "📊", path: "/admin/datasets" },
+  { label: "Ontology", icon: "🏷️", path: "/admin/ontology" },
+  { label: "API Keys", icon: "🔑", path: "/admin/api-keys" },
+  { label: "Settings", icon: "⚙️", path: "/admin/settings" },
+  { label: "Help", icon: "❓", path: "/admin/help" },
+];
   return (
     <div style={{ width: 220, background: "#232F3E", minHeight: "100vh",
       display: "flex", flexDirection: "column" }}>

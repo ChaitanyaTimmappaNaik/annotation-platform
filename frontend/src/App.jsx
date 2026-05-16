@@ -8,6 +8,7 @@ import CreateProject from "./pages/admin/CreateProject";
 import UserManagement from "./pages/admin/UserManagement";
 import ExportAnnotations from "./pages/admin/ExportAnnotations";
 import PlaceholderPage from "./pages/admin/PlaceholderPage";
+import BatchManagement from "./pages/admin/BatchManagement";
 
 function ProtectedRoute({ children, requireAdmin = false }) {
   const token = localStorage.getItem("token");
@@ -33,6 +34,7 @@ export default function App() {
         <Route path="/admin/projects/new" element={<ProtectedRoute requireAdmin><CreateProject /></ProtectedRoute>} />
         <Route path="/admin/users" element={<ProtectedRoute requireAdmin><UserManagement /></ProtectedRoute>} />
         <Route path="/admin/export" element={<ProtectedRoute requireAdmin><ExportAnnotations /></ProtectedRoute>} />
+        <Route path="/admin/batches" element={<ProtectedRoute requireAdmin><BatchManagement /></ProtectedRoute>} />
 
         <Route path="/admin/settings" element={<ProtectedRoute requireAdmin>
           <PlaceholderPage title="Settings" description="Platform configuration." icon="⚙️" active="Settings" />
