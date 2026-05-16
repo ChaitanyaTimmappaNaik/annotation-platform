@@ -1,7 +1,7 @@
 import axios from "axios";
 
 const API = axios.create({
-  baseURL: import.meta.env.VITE_API_URL || "http://127.0.0.1:8000",
+  baseURL: "https://annotation-platform-m7im.onrender.com",
 });
 
 API.interceptors.request.use(config => {
