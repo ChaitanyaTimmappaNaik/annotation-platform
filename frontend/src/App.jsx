@@ -23,6 +23,8 @@ export default function App() {
       <Routes>
         <Route path="/" element={<Navigate to="/login" />} />
         <Route path="/login" element={<UserLogin />} />
+        <Route path="/reset-password" element={<UserLogin />} />
+
         <Route path="/queue" element={<ProtectedRoute><QueueDashboard /></ProtectedRoute>} />
         <Route path="/annotate/:taskId" element={<ProtectedRoute><AnnotationWorkspace /></ProtectedRoute>} />
 
@@ -33,22 +35,22 @@ export default function App() {
         <Route path="/admin/export" element={<ProtectedRoute requireAdmin><ExportAnnotations /></ProtectedRoute>} />
 
         <Route path="/admin/settings" element={<ProtectedRoute requireAdmin>
-          <PlaceholderPage title="Settings" description="Platform configuration and preferences." icon="⚙️" />
+          <PlaceholderPage title="Settings" description="Platform configuration." icon="⚙️" active="Settings" />
         </ProtectedRoute>} />
         <Route path="/admin/help" element={<ProtectedRoute requireAdmin>
-          <PlaceholderPage title="Help & Documentation" description="Guides and support resources." icon="❓" />
+          <PlaceholderPage title="Help" description="Documentation and support." icon="❓" active="Help" />
         </ProtectedRoute>} />
         <Route path="/admin/usage" element={<ProtectedRoute requireAdmin>
-          <PlaceholderPage title="Usage Analytics" description="View platform usage statistics." icon="📈" />
+          <PlaceholderPage title="Usage Analytics" description="Platform statistics." icon="📈" active="Usage" />
         </ProtectedRoute>} />
         <Route path="/admin/ontology" element={<ProtectedRoute requireAdmin>
-          <PlaceholderPage title="Ontology Manager" description="Create and manage label ontologies." icon="🏷️" />
+          <PlaceholderPage title="Ontology Manager" description="Manage label ontologies." icon="🏷️" active="Ontology" />
         </ProtectedRoute>} />
         <Route path="/admin/api-keys" element={<ProtectedRoute requireAdmin>
-          <PlaceholderPage title="API Keys" description="Manage API access keys." icon="🔑" />
+          <PlaceholderPage title="API Keys" description="Manage API access." icon="🔑" active="API Keys" />
         </ProtectedRoute>} />
         <Route path="/admin/datasets" element={<ProtectedRoute requireAdmin>
-          <PlaceholderPage title="Datasets" description="Upload and manage annotation datasets." icon="📊" />
+          <PlaceholderPage title="Datasets" description="Upload and manage datasets." icon="📊" active="Datasets" />
         </ProtectedRoute>} />
       </Routes>
     </BrowserRouter>
