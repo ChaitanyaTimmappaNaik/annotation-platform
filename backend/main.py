@@ -1,7 +1,7 @@
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from database import engine, Base
-from routers import auth, users, projects, tasks, annotations, batches
+from routers import auth, users, projects, tasks, annotations, batches, analytics
 from dotenv import load_dotenv
 import os
 
@@ -30,7 +30,7 @@ app.include_router(projects.router)
 app.include_router(tasks.router)
 app.include_router(annotations.router)
 app.include_router(batches.router)
-
+app.include_router(analytics.router)
 @app.get("/")
 def root():
     return {"message": "Annotation Platform API v2.0 is running!"}

@@ -5,6 +5,7 @@ import API from "../../api/client";
 function AwsSidebar({ active }) {
   const navigate = useNavigate();
   const items = [
+    { label: "Analytics", icon: "📊", path: "/admin/analytics" },
   { label: "Dashboard", icon: "⊞", path: "/admin/dashboard" },
   { label: "Projects", icon: "📁", path: "/admin/projects" },
   { label: "Batches", icon: "📦", path: "/admin/batches" },
