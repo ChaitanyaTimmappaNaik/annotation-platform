@@ -8,11 +8,13 @@ function AwsSidebar({ active }) {
   const items = [
     { label: "Dashboard", icon: "⊞", path: "/admin/dashboard" },
     { label: "Projects", icon: "📁", path: "/admin/projects" },
+    { label: "Batches", icon: "📦", path: "/admin/batches" },
+    { label: "Tasks", icon: "📋", path: "/admin/tasks" },
+    { label: "Datasets", icon: "📂", path: "/admin/datasets" },
     { label: "Users", icon: "👥", path: "/admin/users" },
+    { label: "Analytics", icon: "📊", path: "/admin/analytics" },
+    { label: "Review Queue", icon: "🔍", path: "/admin/review" },
     { label: "Export", icon: "📤", path: "/admin/export" },
-    { label: "Datasets", icon: "📊", path: "/admin/datasets" },
-    { label: "Ontology", icon: "🏷️", path: "/admin/ontology" },
-    { label: "API Keys", icon: "🔑", path: "/admin/api-keys" },
     { label: "Settings", icon: "⚙️", path: "/admin/settings" },
     { label: "Help", icon: "❓", path: "/admin/help" },
   ];
@@ -25,8 +27,8 @@ function AwsSidebar({ active }) {
       <nav style={{ paddingTop: 8 }}>
         {items.map(item => (
           <div key={item.label} onClick={() => navigate(item.path)}
-            style={{ display: "flex", alignItems: "center", gap: 10, padding: "10px 20px",
-              cursor: "pointer", fontSize: 13,
+            style={{ display: "flex", alignItems: "center", gap: 10,
+              padding: "10px 20px", cursor: "pointer", fontSize: 13,
               color: active === item.label ? "#FF9900" : "#d5dbdb",
               background: active === item.label ? "#37475A" : "transparent",
               borderLeft: active === item.label ? "3px solid #FF9900" : "3px solid transparent" }}>
@@ -41,7 +43,9 @@ function AwsSidebar({ active }) {
 export default function UserManagement() {
   const [users, setUsers] = useState([]);
   const [showForm, setShowForm] = useState(false);
+  const [editUser, setEditUser] = useState(null);
   const [form, setForm] = useState({ username: "", email: "", password: "" });
+  const [editForm, setEditForm] = useState({ username: "", email: "", password: "" });
   const [error, setError] = useState("");
   const [success, setSuccess] = useState("");
   const navigate = useNavigate();
@@ -71,10 +75,30 @@ export default function UserManagement() {
     }
   };
 
+  const handleEditUser = async () => {
+    try {
+      const updateData = {};
+      if (editForm.username) updateData.username = editForm.username;
+      if (editForm.email) updateData.email = editForm.email;
+      if (editForm.password) updateData.password = editForm.password;
+
+      await API.put(`/users/${editUser.id}`, updateData);
+      setSuccess(`User "${editUser.username}" updated successfully!`);
+      setEditUser(null);
+      setEditForm({ username: "", email: "", password: "" });
+      fetchUsers();
+    } catch (err) {
+      setError(err.response?.data?.detail || "Could not update user");
+    }
+  };
+
   const handleDeactivate = async (id, uname) => {
     if (!confirm(`Deactivate user "${uname}"?`)) return;
-    try { await API.put(`/users/${id}/deactivate`); fetchUsers(); }
-    catch { alert("Could not deactivate user"); }
+    try {
+      await API.put(`/users/${id}/deactivate`);
+      setSuccess(`User "${uname}" deactivated.`);
+      fetchUsers();
+    } catch { setError("Could not deactivate user"); }
   };
 
   const handleLogout = () => { localStorage.clear(); navigate("/login"); };
@@ -92,9 +116,21 @@ export default function UserManagement() {
 
           {success && (
             <div style={{ background: "#d5f5e3", border: "1px solid #1D8102",
-              borderLeft: "4px solid #1D8102", padding: "10px 16px", borderRadius: 2,
-              fontSize: 13, marginBottom: 16, color: "#1D8102" }}>
+              borderLeft: "4px solid #1D8102", padding: "10px 16px",
+              borderRadius: 2, fontSize: 13, marginBottom: 16, color: "#1D8102" }}>
               ✅ {success}
+              <button onClick={() => setSuccess("")}
+                style={{ float: "right", background: "none", border: "none", cursor: "pointer" }}>×</button>
+            </div>
+          )}
+
+          {error && (
+            <div style={{ background: "#FDEDEC", border: "1px solid #D13212",
+              borderLeft: "4px solid #D13212", padding: "10px 16px",
+              borderRadius: 2, fontSize: 13, marginBottom: 16, color: "#D13212" }}>
+              ⚠️ {error}
+              <button onClick={() => setError("")}
+                style={{ float: "right", background: "none", border: "none", cursor: "pointer" }}>×</button>
             </div>
           )}
 
@@ -103,11 +139,8 @@ export default function UserManagement() {
             <div style={{ background: "white", border: "1px solid #D5DBDB",
               borderRadius: 2, padding: 20, marginBottom: 16 }}>
               <h3 style={{ fontSize: 15, fontWeight: 700, marginBottom: 16, marginTop: 0 }}>
-                Create new annotator
+                Create New Annotator
               </h3>
-              {error && (
-                <div className="aws-error-banner" style={{ marginBottom: 12 }}>{error}</div>
-              )}
               <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 12, marginBottom: 16 }}>
                 {[
                   { label: "Username *", key: "username", type: "text", placeholder: "Enter username" },
@@ -134,13 +167,67 @@ export default function UserManagement() {
             </div>
           )}
 
-          {/* Table */}
+          {/* Edit User Form */}
+          {editUser && (
+            <div style={{ background: "white", border: "1px solid #FF9900",
+              borderRadius: 2, padding: 20, marginBottom: 16 }}>
+              <h3 style={{ fontSize: 15, fontWeight: 700, marginBottom: 4, marginTop: 0 }}>
+                Edit User — {editUser.username}
+              </h3>
+              <p style={{ fontSize: 12, color: "#687078", marginBottom: 16 }}>
+                Leave fields blank to keep current values.
+              </p>
+              <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 12, marginBottom: 16 }}>
+                <div>
+                  <label style={{ fontSize: 12, fontWeight: 700, display: "block", marginBottom: 4 }}>
+                    New Username
+                  </label>
+                  <input className="aws-input" type="text"
+                    placeholder={`Current: ${editUser.username}`}
+                    value={editForm.username}
+                    onChange={e => setEditForm({...editForm, username: e.target.value})}
+                  />
+                </div>
+                <div>
+                  <label style={{ fontSize: 12, fontWeight: 700, display: "block", marginBottom: 4 }}>
+                    New Email
+                  </label>
+                  <input className="aws-input" type="email"
+                    placeholder={`Current: ${editUser.email}`}
+                    value={editForm.email}
+                    onChange={e => setEditForm({...editForm, email: e.target.value})}
+                  />
+                </div>
+                <div>
+                  <label style={{ fontSize: 12, fontWeight: 700, display: "block", marginBottom: 4 }}>
+                    New Password
+                  </label>
+                  <input className="aws-input" type="password"
+                    placeholder="Enter new password"
+                    value={editForm.password}
+                    onChange={e => setEditForm({...editForm, password: e.target.value})}
+                  />
+                </div>
+              </div>
+              <div style={{ display: "flex", gap: 8 }}>
+                <button className="aws-btn-primary" onClick={handleEditUser}>
+                  Save Changes
+                </button>
+                <button className="aws-btn-normal"
+                  onClick={() => { setEditUser(null); setEditForm({ username: "", email: "", password: "" }); setError(""); }}>
+                  Cancel
+                </button>
+              </div>
+            </div>
+          )}
+
+          {/* Users Table */}
           <div style={{ background: "white", border: "1px solid #D5DBDB", borderRadius: 2 }}>
             <div style={{ padding: "16px 20px", borderBottom: "1px solid #D5DBDB",
               display: "flex", justifyContent: "space-between", alignItems: "center" }}>
               <h2 style={{ fontSize: 16, fontWeight: 700, margin: 0 }}>Users ({users.length})</h2>
               <button className="aws-btn-primary"
-                onClick={() => { setShowForm(!showForm); setError(""); setSuccess(""); }}>
+                onClick={() => { setShowForm(!showForm); setEditUser(null); setError(""); setSuccess(""); }}>
                 + Invite member
               </button>
             </div>
@@ -178,12 +265,23 @@ export default function UserManagement() {
                       </span>
                     </td>
                     <td>
-                      {user.is_active && user.role !== "admin" && (
-                        <span style={{ color: "#D13212", cursor: "pointer", fontSize: 13 }}
-                          onClick={() => handleDeactivate(user.id, user.username)}>
-                          Deactivate
+                      <div style={{ display: "flex", gap: 12 }}>
+                        <span className="aws-link"
+                          onClick={() => {
+                            setEditUser(user);
+                            setEditForm({ username: "", email: "", password: "" });
+                            setShowForm(false);
+                            setError("");
+                          }}>
+                          Edit
                         </span>
-                      )}
+                        {user.is_active && user.role !== "admin" && (
+                          <span style={{ color: "#D13212", cursor: "pointer", fontSize: 13 }}
+                            onClick={() => handleDeactivate(user.id, user.username)}>
+                            Deactivate
+                          </span>
+                        )}
+                      </div>
                     </td>
                   </tr>
                 ))}

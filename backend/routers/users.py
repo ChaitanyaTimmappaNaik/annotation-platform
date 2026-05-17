@@ -59,27 +59,22 @@ async def create_user(
     return {"message": "User created", "username": user.username}
 
 # Admin: deactivate user
-@router.put("/{user_id}/deactivate")
-async def deactivate_user(
+@router.put("/{user_id}")
+async def update_user(
     user_id: int,
+    update_data: dict,
     admin: User = Depends(require_admin),
     db: Session = Depends(get_db)
 ):
+    from auth import hash_password
     user = db.query(User).filter(User.id == user_id).first()
     if not user:
         raise HTTPException(404, "User not found")
-    user.is_active = False
+    if update_data.get("username"):
+        user.username = update_data["username"]
+    if update_data.get("email"):
+        user.email = update_data["email"]
+    if update_data.get("password"):
+        user.hashed_password = hash_password(update_data["password"])
     db.commit()
-    return {"message": "User deactivated"}
-
-# Get current user profile
-@router.get("/me")
-async def get_my_profile(
-    current_user: User = Depends(get_current_user)
-):
-    return {
-        "id": current_user.id,
-        "username": current_user.username,
-        "email": current_user.email,
-        "role": current_user.role
-    }
+    return {"message": "User updated successfully"}
