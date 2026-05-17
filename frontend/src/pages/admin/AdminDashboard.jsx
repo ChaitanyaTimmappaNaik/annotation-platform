@@ -8,6 +8,7 @@ function AwsSidebar({ active }) {
   { label: "Dashboard", icon: "⊞", path: "/admin/dashboard" },
   { label: "Projects", icon: "📁", path: "/admin/projects" },
   { label: "Batches", icon: "📦", path: "/admin/batches" },
+  { label: "Tasks", icon: "📋", path: "/admin/tasks" },
   { label: "Users", icon: "👥", path: "/admin/users" },
   { label: "Export", icon: "📤", path: "/admin/export" },
   { label: "Datasets", icon: "📊", path: "/admin/datasets" },

@@ -12,10 +12,12 @@ class UserRole(str, enum.Enum):
 class TaskStatus(str, enum.Enum):
     available = "available"
     in_progress = "in_progress"
+    paused = "paused"
     completed = "completed"
     under_review = "under_review"
     approved = "approved"
     rejected = "rejected"
+   
 
 class DataType(str, enum.Enum):
     text = "text"
@@ -79,6 +81,7 @@ class Task(Base):
     id            = Column(Integer, primary_key=True, index=True)
     title         = Column(String(255), nullable=False)
     project_id    = Column(Integer, ForeignKey("projects.id"))
+    customer_id   = Column(String(100), nullable=True)
     data_content  = Column(Text)
     data_url      = Column(String(500))
     instructions  = Column(Text)

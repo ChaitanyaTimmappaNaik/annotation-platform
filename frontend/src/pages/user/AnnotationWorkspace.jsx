@@ -100,9 +100,16 @@ export default function AnnotationWorkspace() {
   const handleSkipTask = () => releaseAndGo();
 
   const handleStopResume = async () => {
-    if (!confirm("Stop and resume later?")) return;
-    releaseAndGo();
-  };
+  if (!confirm("Stop and resume later? Task will be saved in your queue.")) return;
+  try {
+    await API.put(`/tasks/${taskId}/pause`);
+    clearInterval(timerRef.current);
+    alert("Task paused! You can resume it from your queue.");
+    navigate("/queue");
+  } catch {
+    alert("Could not pause task.");
+  }
+};
 
   const handleSaveAnnotation = async () => {
     if (labels.length === 0) { alert("Please add at least one label."); return; }

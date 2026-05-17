@@ -9,6 +9,7 @@ import UserManagement from "./pages/admin/UserManagement";
 import ExportAnnotations from "./pages/admin/ExportAnnotations";
 import PlaceholderPage from "./pages/admin/PlaceholderPage";
 import BatchManagement from "./pages/admin/BatchManagement";
+import TaskManagement from "./pages/admin/TaskManagement";
 
 function ProtectedRoute({ children, requireAdmin = false }) {
   const token = localStorage.getItem("token");
@@ -26,34 +27,65 @@ export default function App() {
         <Route path="/login" element={<UserLogin />} />
         <Route path="/reset-password" element={<UserLogin />} />
 
-        <Route path="/queue" element={<ProtectedRoute><QueueDashboard /></ProtectedRoute>} />
-        <Route path="/annotate/:taskId" element={<ProtectedRoute><AnnotationWorkspace /></ProtectedRoute>} />
+        <Route path="/queue" element={
+          <ProtectedRoute><QueueDashboard /></ProtectedRoute>
+        } />
+        <Route path="/annotate/:taskId" element={
+          <ProtectedRoute><AnnotationWorkspace /></ProtectedRoute>
+        } />
 
-        <Route path="/admin/dashboard" element={<ProtectedRoute requireAdmin><AdminDashboard /></ProtectedRoute>} />
-        <Route path="/admin/projects" element={<ProtectedRoute requireAdmin><ProjectManagement /></ProtectedRoute>} />
-        <Route path="/admin/projects/new" element={<ProtectedRoute requireAdmin><CreateProject /></ProtectedRoute>} />
-        <Route path="/admin/users" element={<ProtectedRoute requireAdmin><UserManagement /></ProtectedRoute>} />
-        <Route path="/admin/export" element={<ProtectedRoute requireAdmin><ExportAnnotations /></ProtectedRoute>} />
-        <Route path="/admin/batches" element={<ProtectedRoute requireAdmin><BatchManagement /></ProtectedRoute>} />
+        <Route path="/admin/dashboard" element={
+          <ProtectedRoute requireAdmin><AdminDashboard /></ProtectedRoute>
+        } />
+        <Route path="/admin/projects" element={
+          <ProtectedRoute requireAdmin><ProjectManagement /></ProtectedRoute>
+        } />
+        <Route path="/admin/projects/new" element={
+          <ProtectedRoute requireAdmin><CreateProject /></ProtectedRoute>
+        } />
+        <Route path="/admin/users" element={
+          <ProtectedRoute requireAdmin><UserManagement /></ProtectedRoute>
+        } />
+        <Route path="/admin/export" element={
+          <ProtectedRoute requireAdmin><ExportAnnotations /></ProtectedRoute>
+        } />
+        <Route path="/admin/batches" element={
+          <ProtectedRoute requireAdmin><BatchManagement /></ProtectedRoute>
+        } />
+        <Route path="/admin/tasks" element={
+          <ProtectedRoute requireAdmin><TaskManagement /></ProtectedRoute>
+        } />
 
-        <Route path="/admin/settings" element={<ProtectedRoute requireAdmin>
-          <PlaceholderPage title="Settings" description="Platform configuration." icon="⚙️" active="Settings" />
-        </ProtectedRoute>} />
-        <Route path="/admin/help" element={<ProtectedRoute requireAdmin>
-          <PlaceholderPage title="Help" description="Documentation and support." icon="❓" active="Help" />
-        </ProtectedRoute>} />
-        <Route path="/admin/usage" element={<ProtectedRoute requireAdmin>
-          <PlaceholderPage title="Usage Analytics" description="Platform statistics." icon="📈" active="Usage" />
-        </ProtectedRoute>} />
-        <Route path="/admin/ontology" element={<ProtectedRoute requireAdmin>
-          <PlaceholderPage title="Ontology Manager" description="Manage label ontologies." icon="🏷️" active="Ontology" />
-        </ProtectedRoute>} />
-        <Route path="/admin/api-keys" element={<ProtectedRoute requireAdmin>
-          <PlaceholderPage title="API Keys" description="Manage API access." icon="🔑" active="API Keys" />
-        </ProtectedRoute>} />
-        <Route path="/admin/datasets" element={<ProtectedRoute requireAdmin>
-          <PlaceholderPage title="Datasets" description="Upload and manage datasets." icon="📊" active="Datasets" />
-        </ProtectedRoute>} />
+        <Route path="/admin/settings" element={
+          <ProtectedRoute requireAdmin>
+            <PlaceholderPage title="Settings" description="Platform configuration." icon="⚙️" active="Settings" />
+          </ProtectedRoute>
+        } />
+        <Route path="/admin/help" element={
+          <ProtectedRoute requireAdmin>
+            <PlaceholderPage title="Help" description="Documentation and support." icon="❓" active="Help" />
+          </ProtectedRoute>
+        } />
+        <Route path="/admin/usage" element={
+          <ProtectedRoute requireAdmin>
+            <PlaceholderPage title="Usage Analytics" description="Platform statistics." icon="📈" active="Usage" />
+          </ProtectedRoute>
+        } />
+        <Route path="/admin/ontology" element={
+          <ProtectedRoute requireAdmin>
+            <PlaceholderPage title="Ontology Manager" description="Manage label ontologies." icon="🏷️" active="Ontology" />
+          </ProtectedRoute>
+        } />
+        <Route path="/admin/api-keys" element={
+          <ProtectedRoute requireAdmin>
+            <PlaceholderPage title="API Keys" description="Manage API access." icon="🔑" active="API Keys" />
+          </ProtectedRoute>
+        } />
+        <Route path="/admin/datasets" element={
+          <ProtectedRoute requireAdmin>
+            <PlaceholderPage title="Datasets" description="Upload and manage datasets." icon="📊" active="Datasets" />
+          </ProtectedRoute>
+        } />
       </Routes>
     </BrowserRouter>
   );

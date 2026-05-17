@@ -39,18 +39,12 @@ export default function QueueDashboard() {
       ws.onmessage = (event) => {
         const msg = JSON.parse(event.data);
         if (msg.type === "batch_assigned") {
-          setNotification({
-            type: "info",
-            message: msg.message
-          });
+          setNotification({ type: "info", message: msg.message });
           fetchQueue();
         } else if (msg.type === "task_status_changed") {
           fetchQueue();
         } else if (msg.type === "batch_updated") {
-          setNotification({
-            type: "warning",
-            message: msg.message
-          });
+          setNotification({ type: "warning", message: msg.message });
         }
         setTimeout(() => setNotification(null), 5000);
       };
@@ -86,7 +80,10 @@ export default function QueueDashboard() {
         }));
       }
       navigate(`/annotate/${selected}`);
-    } catch { alert("Could not claim task. Please try again."); }
+    } catch (err) {
+      const msg = err.response?.data?.detail || "Could not claim task.";
+      alert(msg);
+    }
   };
 
   const handleLogout = () => {
@@ -105,7 +102,8 @@ export default function QueueDashboard() {
           <span>Hello, <strong>{username}</strong></span>
           <button onClick={handleLogout}
             style={{ background: "transparent", border: "1px solid #aab7b8",
-              color: "white", padding: "4px 12px", borderRadius: 2, fontSize: 12, cursor: "pointer" }}>
+              color: "white", padding: "4px 12px", borderRadius: 2,
+              fontSize: 12, cursor: "pointer" }}>
             Log out
           </button>
         </div>
@@ -160,7 +158,8 @@ export default function QueueDashboard() {
             </label>
             {selected ? (
               <button className="aws-btn-primary" onClick={handleStartWorking}>
-                Start working
+                {tasks.find(t => t.id === selected)?.status === "paused"
+                  ? "Resume Task" : "Start working"}
               </button>
             ) : (
               <button className="aws-btn-disabled" disabled>
@@ -192,42 +191,80 @@ export default function QueueDashboard() {
                 <th>Task title ▼</th>
                 <th>Customer ID ▼</th>
                 <th>Status ▼</th>
+                <th>Time Limit</th>
                 <th>Creation time ▼</th>
               </tr>
             </thead>
             <tbody>
               {tasks.length === 0 ? (
                 <tr>
-                  <td colSpan="5" style={{ textAlign: "center", padding: 40, color: "#687078" }}>
+                  <td colSpan="6" style={{ textAlign: "center", padding: 40, color: "#687078" }}>
                     No tasks available
                   </td>
                 </tr>
               ) : (
-                tasks.map(task => (
-                  <tr key={task.id}
-                    style={{ cursor: "pointer",
-                      background: selected === task.id ? "#F0F8FF" : "white" }}
-                    onClick={() => setSelected(task.id)}>
-                    <td style={{ textAlign: "center" }}>
-                      <input type="radio" name="task"
-                        checked={selected === task.id}
-                        onChange={() => setSelected(task.id)}
-                        style={{ accentColor: "#0073BB" }}
-                      />
-                    </td>
-                    <td><span className="aws-link">{task.title}</span></td>
-                    <td style={{ color: "#687078" }}>{task.customer_id || "—"}</td>
-                    <td>
-                      <span className="aws-badge-available">Available</span>
-                    </td>
-                    <td style={{ color: "#687078" }}>
-                      {new Date(task.created_at).toLocaleString("en-US", {
-                        month: "short", day: "numeric", year: "numeric",
-                        hour: "2-digit", minute: "2-digit"
-                      })} UTC
-                    </td>
-                  </tr>
-                ))
+                tasks.map(task => {
+                  const isPaused = task.status === "paused";
+                  return (
+                    <tr key={task.id}
+                      style={{ cursor: "pointer",
+                        background: selected === task.id ? "#F0F8FF"
+                          : isPaused ? "#FFFBF5" : "white" }}
+                      onClick={() => setSelected(task.id)}>
+                      <td style={{ textAlign: "center" }}>
+                        <input type="radio" name="task"
+                          checked={selected === task.id}
+                          onChange={() => setSelected(task.id)}
+                          style={{ accentColor: "#0073BB" }}
+                        />
+                      </td>
+                      <td>
+                        <span className="aws-link">{task.title}</span>
+                        {task.batch_name && (
+                          <span style={{ marginLeft: 8, fontSize: 11,
+                            background: "#E8F4FD", color: "#0073BB",
+                            padding: "1px 6px", borderRadius: 2 }}>
+                            {task.batch_name}
+                          </span>
+                        )}
+                        {isPaused && (
+                          <span style={{ marginLeft: 8, fontSize: 11,
+                            background: "#FEF9E7", color: "#996300",
+                            padding: "1px 6px", borderRadius: 2 }}>
+                            ⏸ Paused — Click Resume
+                          </span>
+                        )}
+                      </td>
+                      <td style={{ color: "#687078" }}>
+                        {task.customer_id || "—"}
+                      </td>
+                      <td>
+                        {isPaused ? (
+                          <span style={{ background: "#FEF9E7", color: "#996300",
+                            padding: "2px 8px", borderRadius: 2,
+                            fontSize: 12, fontWeight: 600 }}>
+                            ⏸ Paused
+                          </span>
+                        ) : (
+                          <span style={{ background: "#d5f5e3", color: "#1D8102",
+                            padding: "2px 8px", borderRadius: 2,
+                            fontSize: 12, fontWeight: 600 }}>
+                            Available
+                          </span>
+                        )}
+                      </td>
+                      <td style={{ color: "#687078", fontSize: 12 }}>
+                        ⏱ {Math.floor((task.time_limit || 1800) / 60)} min
+                      </td>
+                      <td style={{ color: "#687078" }}>
+                        {new Date(task.created_at).toLocaleString("en-US", {
+                          month: "short", day: "numeric", year: "numeric",
+                          hour: "2-digit", minute: "2-digit"
+                        })} UTC
+                      </td>
+                    </tr>
+                  );
+                })
               )}
             </tbody>
           </table>
