@@ -5,12 +5,12 @@ import API from "../../api/client";
 function AwsSidebar({ active }) {
   const navigate = useNavigate();
   const items = [
-    { label: "Analytics", icon: "📊", path: "/admin/analytics" },
   { label: "Dashboard", icon: "⊞", path: "/admin/dashboard" },
   { label: "Projects", icon: "📁", path: "/admin/projects" },
   { label: "Batches", icon: "📦", path: "/admin/batches" },
   { label: "Tasks", icon: "📋", path: "/admin/tasks" },
   { label: "Users", icon: "👥", path: "/admin/users" },
+  { label: "Analytics", icon: "📊", path: "/admin/analytics" },
   { label: "Export", icon: "📤", path: "/admin/export" },
   { label: "Datasets", icon: "📊", path: "/admin/datasets" },
   { label: "Ontology", icon: "🏷️", path: "/admin/ontology" },
