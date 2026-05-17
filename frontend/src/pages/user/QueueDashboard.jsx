@@ -191,7 +191,6 @@ export default function QueueDashboard() {
                 <th>Task title ▼</th>
                 <th>Customer ID ▼</th>
                 <th>Status ▼</th>
-                <th>Time Limit</th>
                 <th>Creation time ▼</th>
               </tr>
             </thead>
@@ -252,9 +251,6 @@ export default function QueueDashboard() {
                             Available
                           </span>
                         )}
-                      </td>
-                      <td style={{ color: "#687078", fontSize: 12 }}>
-                        ⏱ {Math.floor((task.time_limit || 1800) / 60)} min
                       </td>
                       <td style={{ color: "#687078" }}>
                         {new Date(task.created_at).toLocaleString("en-US", {
