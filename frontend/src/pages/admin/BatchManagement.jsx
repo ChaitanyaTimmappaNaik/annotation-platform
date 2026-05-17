@@ -70,7 +70,7 @@ export default function BatchManagement() {
 
   const handleCreateBatch = async () => {
     if (!form.name || !form.project_id || form.user_ids.length === 0) {
-      setError("Please fill all fields and select at least one user.");
+      setError("Please fill all fields and select at least one annotator.");
       return;
     }
     try {
@@ -81,7 +81,7 @@ export default function BatchManagement() {
         tasks_per_user: parseInt(form.tasks_per_user),
         time_limit: parseInt(form.time_limit)
       });
-      setSuccess("Batch created and users notified!");
+      setSuccess("Batch created! Tasks are now available in the queue.");
       setShowForm(false);
       setForm({ name: "", project_id: "", user_ids: [], tasks_per_user: 10, time_limit: 1800 });
       fetchAll();
@@ -93,7 +93,7 @@ export default function BatchManagement() {
   const handleUpdateTimeLimit = async (batchId) => {
     try {
       await API.put(`/batches/${batchId}`, { time_limit: parseInt(editTimeLimit) });
-      setSuccess("Time limit updated! All users notified instantly.");
+      setSuccess("Time limit updated! All annotators notified instantly.");
       setEditBatch(null);
       fetchAll();
     } catch {
@@ -105,7 +105,7 @@ export default function BatchManagement() {
     const newStatus = currentStatus === "active" ? "paused" : "active";
     try {
       await API.put(`/batches/${batchId}`, { status: newStatus });
-      setSuccess(`Batch ${newStatus === "paused" ? "paused" : "resumed"}!`);
+      setSuccess(`Batch ${newStatus === "paused" ? "paused — tasks hidden from queue" : "resumed — tasks visible in queue"}!`);
       fetchAll();
     } catch {
       setError("Could not update batch status.");
@@ -139,6 +139,16 @@ export default function BatchManagement() {
             AnnotateHub &gt; <strong>Queue Batches</strong>
           </div>
 
+          {/* Info box explaining batch workflow */}
+          <div style={{ background: "#F0F8FF", border: "1px solid #0073BB",
+            borderLeft: "4px solid #0073BB", borderRadius: 2,
+            padding: "12px 16px", marginBottom: 16, fontSize: 13 }}>
+            <strong>How Batches Work:</strong> Create a batch linked to a project.
+            All available tasks from that project appear in the queue.
+            Any annotator can pick tasks — first come, first served.
+            The time limit applies per task.
+          </div>
+
           {success && (
             <div style={{ background: "#d5f5e3", border: "1px solid #1D8102",
               borderLeft: "4px solid #1D8102", padding: "10px 16px",
@@ -163,9 +173,12 @@ export default function BatchManagement() {
           {showForm && (
             <div style={{ background: "white", border: "1px solid #D5DBDB",
               borderRadius: 2, padding: 20, marginBottom: 16 }}>
-              <h3 style={{ fontSize: 15, fontWeight: 700, marginBottom: 16, marginTop: 0 }}>
+              <h3 style={{ fontSize: 15, fontWeight: 700, marginBottom: 4, marginTop: 0 }}>
                 Create New Queue Batch
               </h3>
+              <p style={{ fontSize: 12, color: "#687078", marginBottom: 16 }}>
+                Select a project — all tasks in that project will appear in the queue for annotators.
+              </p>
               <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 16, marginBottom: 16 }}>
                 <div>
                   <label style={{ fontSize: 12, fontWeight: 700, display: "block", marginBottom: 4 }}>
@@ -177,7 +190,7 @@ export default function BatchManagement() {
                 </div>
                 <div>
                   <label style={{ fontSize: 12, fontWeight: 700, display: "block", marginBottom: 4 }}>
-                    Project *
+                    Project * (tasks from this project go to queue)
                   </label>
                   <select className="aws-input"
                     value={form.project_id}
@@ -190,9 +203,10 @@ export default function BatchManagement() {
                 </div>
                 <div>
                   <label style={{ fontSize: 12, fontWeight: 700, display: "block", marginBottom: 4 }}>
-                    Tasks Per Batch
+                    Tasks Per Batch (total tasks in queue)
                   </label>
                   <input className="aws-input" type="number" min="1" max="500"
+                    placeholder="e.g. 50"
                     value={form.tasks_per_user}
                     onChange={e => setForm({...form, tasks_per_user: e.target.value})} />
                 </div>
@@ -211,11 +225,14 @@ export default function BatchManagement() {
                 </div>
               </div>
 
-              {/* User Selection */}
+              {/* Annotator Selection */}
               <div style={{ marginBottom: 16 }}>
-                <label style={{ fontSize: 12, fontWeight: 700, display: "block", marginBottom: 8 }}>
-                  Assign Annotators * ({form.user_ids.length} selected)
+                <label style={{ fontSize: 12, fontWeight: 700, display: "block", marginBottom: 4 }}>
+                  Notify Annotators ({form.user_ids.length} selected)
                 </label>
+                <p style={{ fontSize: 11, color: "#687078", marginBottom: 8 }}>
+                  Selected annotators will get a notification. All annotators can still access the queue.
+                </p>
                 <div style={{ display: "flex", flexWrap: "wrap", gap: 8 }}>
                   {users.length === 0 ? (
                     <p style={{ fontSize: 12, color: "#687078" }}>
@@ -269,9 +286,10 @@ export default function BatchManagement() {
                 <tr>
                   <th>Batch Name</th>
                   <th>Project</th>
-                  <th>Annotators</th>
+                  <th>Available Tasks</th>
                   <th>Tasks/Batch</th>
-                  <th>Time Limit</th>
+                  <th>Time Limit/Task</th>
+                  <th>Notified</th>
                   <th>Status</th>
                   <th>Actions</th>
                 </tr>
@@ -279,7 +297,7 @@ export default function BatchManagement() {
               <tbody>
                 {batches.length === 0 ? (
                   <tr>
-                    <td colSpan="7" style={{ textAlign: "center", padding: 40, color: "#687078" }}>
+                    <td colSpan="8" style={{ textAlign: "center", padding: 40, color: "#687078" }}>
                       No batches yet. Click "+ Create Batch" to get started.
                     </td>
                   </tr>
@@ -291,9 +309,9 @@ export default function BatchManagement() {
                         {projects.find(p => p.id === batch.project_id)?.name || `Project ${batch.project_id}`}
                       </td>
                       <td>
-                        <span style={{ background: "#E8F4FD", color: "#0073BB",
+                        <span style={{ background: "#d5f5e3", color: "#1D8102",
                           padding: "2px 8px", borderRadius: 2, fontSize: 12, fontWeight: 600 }}>
-                          {batch.assigned_users} annotators
+                          {batch.available_tasks ?? 0} tasks
                         </span>
                       </td>
                       <td style={{ color: "#16191f" }}>{batch.tasks_per_user} tasks</td>
@@ -336,6 +354,12 @@ export default function BatchManagement() {
                         )}
                       </td>
                       <td>
+                        <span style={{ background: "#E8F4FD", color: "#0073BB",
+                          padding: "2px 8px", borderRadius: 2, fontSize: 12, fontWeight: 600 }}>
+                          {batch.assigned_users} annotators
+                        </span>
+                      </td>
+                      <td>
                         <span style={{
                           background: batch.status === "active" ? "#d5f5e3" : "#FEF9E7",
                           color: batch.status === "active" ? "#1D8102" : "#996300",
@@ -360,4 +384,4 @@ export default function BatchManagement() {
       </div>
     </div>
   );
-} 
+}
