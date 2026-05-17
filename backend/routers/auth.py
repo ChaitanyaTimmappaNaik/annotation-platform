@@ -3,13 +3,13 @@ from fastapi.security import OAuth2PasswordRequestForm
 from sqlalchemy.orm import Session
 from database import get_db
 from models import User, PasswordResetToken, RefreshToken
-from auth import (
-    verify_password, create_access_token, create_refresh_token,
-    create_password_reset_token, hash_password, get_current_user
-)
 from pydantic import BaseModel
 from datetime import datetime
 import os
+import sys
+
+sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+import auth as auth_utils
 
 router = APIRouter(prefix="/auth", tags=["auth"])
 
@@ -58,7 +58,7 @@ async def login(
     if not user:
         raise HTTPException(status_code=401, detail="Invalid username or password")
 
-    if not verify_password(form_data.password, user.hashed_password):
+    if not auth_utils.verify_password(form_data.password, user.hashed_password):
         raise HTTPException(status_code=401, detail="Invalid username or password")
 
     if not user.is_active:
@@ -67,12 +67,12 @@ async def login(
     user.last_login = datetime.utcnow()
     db.commit()
 
-    access_token = create_access_token({
+    access_token = auth_utils.create_access_token({
         "sub": str(user.id),
         "role": user.role,
         "username": user.username
     })
-    refresh_token = create_refresh_token(user.id, db)
+    refresh_token = auth_utils.create_refresh_token(user.id, db)
 
     return {
         "access_token": access_token,
@@ -80,6 +80,7 @@ async def login(
         "token_type": "bearer",
         "role": user.role,
         "username": user.username,
+        "user_id": user.id,
         "expires_in": 3600
     }
 
@@ -100,7 +101,7 @@ async def refresh_token(
     if not user or not user.is_active:
         raise HTTPException(status_code=401, detail="User not found")
 
-    access_token = create_access_token({
+    access_token = auth_utils.create_access_token({
         "sub": str(user.id),
         "role": user.role,
         "username": user.username
@@ -133,7 +134,7 @@ async def forgot_password(
 ):
     user = db.query(User).filter(User.email == request.email).first()
     if user:
-        token = create_password_reset_token(user.id, db)
+        token = auth_utils.create_password_reset_token(user.id, db)
         background_tasks.add_task(send_reset_email, user.email, token, user.username)
     return {"message": "If an account exists with this email, reset instructions have been sent."}
 
@@ -154,7 +155,7 @@ async def reset_password(
         raise HTTPException(status_code=400, detail="Password must be at least 8 characters")
 
     user = db.query(User).filter(User.id == db_token.user_id).first()
-    user.hashed_password = hash_password(request.new_password)
+    user.hashed_password = auth_utils.hash_password(request.new_password)
     db_token.used = True
     db.query(RefreshToken).filter(
         RefreshToken.user_id == user.id
@@ -163,7 +164,9 @@ async def reset_password(
     return {"message": "Password reset successfully. Please login with your new password."}
 
 @router.get("/me")
-async def get_me(current_user: User = Depends(get_current_user)):
+async def get_me(
+    current_user: User = Depends(auth_utils.get_current_user)
+):
     return {
         "id": current_user.id,
         "username": current_user.username,
