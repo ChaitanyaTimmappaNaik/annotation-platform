@@ -1,4 +1,5 @@
 import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
+import Settings from "./pages/admin/Settings";
 import UserLogin from "./pages/user/Login";
 import QueueDashboard from "./pages/user/QueueDashboard";
 import AnnotationWorkspace from "./pages/user/AnnotationWorkspace";
@@ -67,12 +68,10 @@ export default function App() {
         <Route path="/admin/datasets" element={
           <ProtectedRoute requireAdmin><DatasetUpload /></ProtectedRoute>
         } />
-
         <Route path="/admin/settings" element={
-          <ProtectedRoute requireAdmin>
-            <PlaceholderPage title="Settings" description="Platform configuration." icon="⚙️" active="Settings" />
-          </ProtectedRoute>
+        <ProtectedRoute requireAdmin><Settings /></ProtectedRoute>
         } />
+        
         <Route path="/admin/help" element={
           <ProtectedRoute requireAdmin>
             <PlaceholderPage title="Help" description="Documentation and support." icon="❓" active="Help" />

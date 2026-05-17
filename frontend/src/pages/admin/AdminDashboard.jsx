@@ -9,12 +9,11 @@ function AwsSidebar({ active }) {
   { label: "Projects", icon: "📁", path: "/admin/projects" },
   { label: "Batches", icon: "📦", path: "/admin/batches" },
   { label: "Tasks", icon: "📋", path: "/admin/tasks" },
+  { label: "Datasets", icon: "📂", path: "/admin/datasets" },
   { label: "Users", icon: "👥", path: "/admin/users" },
   { label: "Analytics", icon: "📊", path: "/admin/analytics" },
+  { label: "Review Queue", icon: "🔍", path: "/admin/review" },
   { label: "Export", icon: "📤", path: "/admin/export" },
-  { label: "Datasets", icon: "📊", path: "/admin/datasets" },
-  { label: "Ontology", icon: "🏷️", path: "/admin/ontology" },
-  { label: "API Keys", icon: "🔑", path: "/admin/api-keys" },
   { label: "Settings", icon: "⚙️", path: "/admin/settings" },
   { label: "Help", icon: "❓", path: "/admin/help" },
 ];
@@ -89,14 +88,14 @@ export default function AdminDashboard() {
 
   const handleLogout = () => { localStorage.clear(); navigate("/login"); };
 
-  const quickActions = [
-    { label: "Create Project", icon: "📁", path: "/admin/projects/new", desc: "Start a new annotation project" },
-    { label: "Add Dataset", icon: "📊", path: "/admin/datasets", desc: "Upload annotation data" },
-    { label: "Invite Members", icon: "👥", path: "/admin/users", desc: "Add new annotators" },
-    { label: "View Usage", icon: "📈", path: "/admin/usage", desc: "Check platform statistics" },
-    { label: "Create Ontology", icon: "🏷️", path: "/admin/ontology", desc: "Define annotation labels" },
-    { label: "Create API Key", icon: "🔑", path: "/admin/api-keys", desc: "Generate API access keys" },
-  ];
+ const quickActions = [
+  { label: "Create Project", icon: "📁", path: "/admin/projects/new", desc: "Start a new annotation project" },
+  { label: "Upload Dataset", icon: "📂", path: "/admin/datasets", desc: "Bulk upload tasks via CSV" },
+  { label: "Create Batch", icon: "📦", path: "/admin/batches", desc: "Assign tasks to annotators" },
+  { label: "View Analytics", icon: "📊", path: "/admin/analytics", desc: "Track team productivity" },
+  { label: "Review Queue", icon: "🔍", path: "/admin/review", desc: "QA and approve annotations" },
+  { label: "Manage Users", icon: "👥", path: "/admin/users", desc: "Add and manage annotators" },
+];
 
   const statCards = [
     { label: "Total Projects", value: stats.projects, icon: "📁", color: "#0073BB" },

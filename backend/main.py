@@ -9,7 +9,7 @@ load_dotenv()
 
 Base.metadata.create_all(bind=engine)
 
-app = FastAPI(title="Annotation Platform API", version="2.0.0")
+app = FastAPI(title="AnnotateHub API", version="3.0.0")
 
 cors_origins = os.getenv(
     "CORS_ORIGINS",
@@ -31,10 +31,11 @@ app.include_router(tasks.router)
 app.include_router(annotations.router)
 app.include_router(batches.router)
 app.include_router(analytics.router)
+
 @app.get("/")
 def root():
-    return {"message": "Annotation Platform API v2.0 is running!"}
+    return {"message": "AnnotateHub API v3.0 is running!"}
 
 @app.get("/health")
 def health():
-    return {"status": "healthy", "version": "2.0.0"}
+    return {"status": "healthy", "version": "3.0.0"}

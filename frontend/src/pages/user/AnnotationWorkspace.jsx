@@ -120,15 +120,20 @@ export default function AnnotationWorkspace() {
   };
 
   const handleSubmitTask = async () => {
-    if (labels.length === 0) { alert("Please add at least one label."); return; }
-    try {
-      await API.post(`/annotations/tasks/${taskId}`, { label_data: { spans: labels }, notes });
-      setSubmitted(true);
-      clearInterval(timerRef.current);
-      alert("Task submitted successfully!");
-      navigate("/queue");
-    } catch { alert("Could not submit."); }
-  };
+  if (labels.length === 0) { alert("Please add at least one label."); return; }
+  const timeSpent = (29 * 60 + 59) - timeLeft;
+  try {
+    await API.post(`/annotations/tasks/${taskId}`, {
+      label_data: { spans: labels },
+      notes: notes,
+      time_spent: timeSpent
+    });
+    setSubmitted(true);
+    clearInterval(timerRef.current);
+    alert("Task submitted successfully!");
+    navigate("/queue");
+  } catch { alert("Could not submit."); }
+};
 
   if (!task) return (
     <div style={{ minHeight: "100vh", display: "flex", alignItems: "center", justifyContent: "center" }}>
