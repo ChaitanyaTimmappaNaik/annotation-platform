@@ -154,11 +154,12 @@ async def get_queue(
 ):
     from models import QueueBatch
 
-    # Get paused tasks for current user
+    # Get paused AND in_progress tasks for current user
     paused_rows = db.execute(text(
         "SELECT id, title, project_id, customer_id, data_content, "
         "instructions, status, assigned_to, created_at "
-        f"FROM tasks WHERE status = 'paused' AND assigned_to = {current_user.id}"
+        f"FROM tasks WHERE status IN ('paused', 'in_progress') "
+        f"AND assigned_to = {current_user.id}"
     )).fetchall()
 
     # Get active batches
@@ -236,6 +237,9 @@ async def claim_task(
         db.add(log)
         db.commit()
         return {"message": "Task resumed", "task_id": task.id}
+
+    if task.status == TaskStatus.in_progress and task.assigned_to == current_user.id:
+        return {"message": "Task already in progress", "task_id": task.id}
 
     if task.status != TaskStatus.available:
         raise HTTPException(400, "Task not available — already claimed")
