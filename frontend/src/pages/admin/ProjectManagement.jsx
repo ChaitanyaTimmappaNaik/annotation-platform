@@ -1,4 +1,5 @@
 import { useState, useEffect } from "react";
+import { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import API from "../../api/client";
 import { AwsTopNav } from "./AdminDashboard";
@@ -50,7 +51,9 @@ export default function ProjectManagement() {
   const navigate = useNavigate();
   const username = localStorage.getItem("username");
 
-  useEffect(() => { fetchProjects(); }, [search]);
+  const [refreshKey, setRefreshKey] = useState(0);
+
+useEffect(() => { fetchProjects(); }, [search, refreshKey]);
 
   const fetchProjects = async () => {
     try {
@@ -187,7 +190,7 @@ export default function ProjectManagement() {
                     placeholder="Search projects"
                     value={search} onChange={e => setSearch(e.target.value)} />
                 </div>
-                <button className="aws-btn-normal" onClick={fetchProjects}>Refresh</button>
+                <button className="aws-btn-normal" onClick={() => setRefreshKey(k => k + 1)}>Refresh</button>
                 <button className="aws-btn-primary" onClick={() => navigate("/admin/projects/new")}>
                   Create project
                 </button>
