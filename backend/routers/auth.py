@@ -1,121 +1,66 @@
-from fastapi import APIRouter, Depends, HTTPException, BackgroundTasks
-from fastapi.security import OAuth2PasswordRequestForm
+from passlib.context import CryptContext
+from jose import JWTError, jwt
+from datetime import datetime, timedelta
+from fastapi import Depends, HTTPException
+from fastapi.security import OAuth2PasswordBearer
 from sqlalchemy.orm import Session
 from database import get_db
-from models import User, PasswordResetToken, RefreshToken
-from pydantic import BaseModel
-from datetime import datetime
 import os
+import secrets
 
-router = APIRouter(prefix="/auth", tags=["auth"])
+pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
+oauth2_scheme = OAuth2PasswordBearer(tokenUrl="/auth/login")
 
-class ForgotPasswordRequest(BaseModel):
-    email: str
+SECRET_KEY = os.getenv("SECRET_KEY", "supersecretkey123456789")
+ALGORITHM = "HS256"
+ACCESS_TOKEN_EXPIRE_MINUTES = 60
 
-class ResetPasswordRequest(BaseModel):
-    token: str
-    new_password: str
+def hash_password(password: str) -> str:
+    return pwd_context.hash(password)
 
-class RefreshTokenRequest(BaseModel):
-    refresh_token: str
+def verify_password(plain: str, hashed: str) -> bool:
+    return pwd_context.verify(plain, hashed)
 
-def send_reset_email(email: str, token: str, username: str):
-    reset_url = f"{os.getenv('FRONTEND_URL', 'http://localhost:5173')}/reset-password?token={token}"
-    print(f"Reset URL: {reset_url}")
+def create_access_token(data: dict) -> str:
+    to_encode = data.copy()
+    expire = datetime.utcnow() + timedelta(minutes=ACCESS_TOKEN_EXPIRE_MINUTES)
+    to_encode.update({"exp": expire})
+    return jwt.encode(to_encode, SECRET_KEY, algorithm=ALGORITHM)
 
-@router.post("/login")
-async def login(
-    form_data: OAuth2PasswordRequestForm = Depends(),
-    db: Session = Depends(get_db)
-):
-    from auth import verify_password, create_access_token, create_refresh_token
-    user = db.query(User).filter(User.username == form_data.username).first()
-    if not user:
-        raise HTTPException(status_code=401, detail="Invalid username or password")
-    if not verify_password(form_data.password, user.hashed_password):
-        raise HTTPException(status_code=401, detail="Invalid username or password")
-    if not user.is_active:
-        raise HTTPException(status_code=401, detail="Account is disabled")
-    user.last_login = datetime.utcnow()
+def create_refresh_token(user_id: int, db: Session) -> str:
+    from models import RefreshToken
+    token = secrets.token_urlsafe(64)
+    expires = datetime.utcnow() + timedelta(days=30)
+    db_token = RefreshToken(user_id=user_id, token=token, expires_at=expires)
+    db.add(db_token)
     db.commit()
-    access_token = create_access_token({
-        "sub": str(user.id),
-        "role": user.role,
-        "username": user.username
-    })
-    refresh_token = create_refresh_token(user.id, db)
-    return {
-        "access_token": access_token,
-        "refresh_token": refresh_token,
-        "token_type": "bearer",
-        "role": user.role,
-        "username": user.username,
-        "user_id": user.id,
-        "expires_in": 3600
-    }
+    return token
 
-@router.post("/refresh")
-async def refresh_token(
-    request: RefreshTokenRequest,
+def create_password_reset_token(user_id: int, db: Session) -> str:
+    from models import PasswordResetToken
+    token = secrets.token_urlsafe(32)
+    expires = datetime.utcnow() + timedelta(hours=1)
+    db_token = PasswordResetToken(user_id=user_id, token=token, expires_at=expires)
+    db.add(db_token)
+    db.commit()
+    return token
+
+def get_current_user(
+    token: str = Depends(oauth2_scheme),
     db: Session = Depends(get_db)
 ):
-    from auth import create_access_token
-    db_token = db.query(RefreshToken).filter(
-        RefreshToken.token == request.refresh_token,
-        RefreshToken.revoked == False
-    ).first()
-    if not db_token or db_token.expires_at < datetime.utcnow():
-        raise HTTPException(status_code=401, detail="Invalid or expired refresh token")
-    user = db.query(User).filter(User.id == db_token.user_id).first()
+    from models import User
+    try:
+        payload = jwt.decode(token, SECRET_KEY, algorithms=[ALGORITHM])
+        user_id = int(payload.get("sub"))
+    except (JWTError, TypeError, ValueError):
+        raise HTTPException(status_code=401, detail="Invalid token")
+    user = db.query(User).filter(User.id == user_id).first()
     if not user or not user.is_active:
         raise HTTPException(status_code=401, detail="User not found")
-    access_token = create_access_token({
-        "sub": str(user.id),
-        "role": user.role,
-        "username": user.username
-    })
-    return {"access_token": access_token, "token_type": "bearer", "expires_in": 3600}
+    return user
 
-@router.post("/logout")
-async def logout(request: RefreshTokenRequest, db: Session = Depends(get_db)):
-    db_token = db.query(RefreshToken).filter(RefreshToken.token == request.refresh_token).first()
-    if db_token:
-        db_token.revoked = True
-        db.commit()
-    return {"message": "Logged out successfully"}
-
-@router.post("/forgot-password")
-async def forgot_password(
-    request: ForgotPasswordRequest,
-    background_tasks: BackgroundTasks,
-    db: Session = Depends(get_db)
-):
-    from auth import create_password_reset_token
-    user = db.query(User).filter(User.email == request.email).first()
-    if user:
-        token = create_password_reset_token(user.id, db)
-        background_tasks.add_task(send_reset_email, user.email, token, user.username)
-    return {"message": "If an account exists with this email, reset instructions have been sent."}
-
-@router.post("/reset-password")
-async def reset_password(request: ResetPasswordRequest, db: Session = Depends(get_db)):
-    from auth import hash_password
-    db_token = db.query(PasswordResetToken).filter(
-        PasswordResetToken.token == request.token,
-        PasswordResetToken.used == False
-    ).first()
-    if not db_token or db_token.expires_at < datetime.utcnow():
-        raise HTTPException(status_code=400, detail="Invalid or expired reset token")
-    if len(request.new_password) < 8:
-        raise HTTPException(status_code=400, detail="Password must be at least 8 characters")
-    user = db.query(User).filter(User.id == db_token.user_id).first()
-    user.hashed_password = hash_password(request.new_password)
-    db_token.used = True
-    db.query(RefreshToken).filter(RefreshToken.user_id == user.id).update({"revoked": True})
-    db.commit()
-    return {"message": "Password reset successfully. Please login with your new password."}
-
-@router.get("/me")
-async def get_me(db: Session = Depends(get_db), token: str = ""):
-    from auth import get_current_user
-    return {"message": "OK"}
+def require_admin(current_user=Depends(get_current_user)):
+    if current_user.role not in ["admin"]:
+        raise HTTPException(status_code=403, detail="Admin access required")
+    return current_user
