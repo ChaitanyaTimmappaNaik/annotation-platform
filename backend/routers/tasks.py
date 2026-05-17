@@ -1,4 +1,4 @@
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, File, UploadFile
 from sqlalchemy.orm import Session
 from sqlalchemy import text
 from database import get_db
@@ -92,6 +92,60 @@ async def create_bulk_tasks(
     db.commit()
     return {"message": f"{len(tasks)} tasks created"}
 
+@router.post("/upload")
+async def upload_tasks_csv(
+    project_id: int,
+    file: UploadFile = File(...),
+    admin: User = Depends(require_admin),
+    db: Session = Depends(get_db)
+):
+    import csv
+    import io
+
+    content = await file.read()
+
+    try:
+        text_content = content.decode("utf-8")
+    except Exception:
+        text_content = content.decode("latin-1")
+
+    reader = csv.DictReader(io.StringIO(text_content))
+    tasks_created = 0
+    errors = []
+
+    for i, row in enumerate(reader):
+        try:
+            title = (
+                row.get("title") or row.get("Title") or f"Task {i+1}"
+            ).strip()
+            data_content = (
+                row.get("content") or row.get("Content") or
+                row.get("text") or row.get("Text") or ""
+            ).strip()
+            customer_id = row.get("customer_id") or row.get("Customer ID") or None
+            instructions = row.get("instructions") or row.get("Instructions") or None
+
+            task = Task(
+                title=title,
+                project_id=project_id,
+                customer_id=customer_id.strip() if customer_id else None,
+                data_content=data_content,
+                instructions=instructions.strip() if instructions else None,
+                status=TaskStatus.available
+            )
+            db.add(task)
+            tasks_created += 1
+        except Exception as e:
+            errors.append(f"Row {i+1}: {str(e)}")
+
+    db.commit()
+
+    return {
+        "message": f"{tasks_created} tasks created successfully",
+        "tasks_created": tasks_created,
+        "errors": errors
+    }
+
 @router.get("/queue")
 async def get_queue(
     search: Optional[str] = None,
@@ -100,7 +154,7 @@ async def get_queue(
 ):
     from models import QueueBatch
 
-    # Get paused tasks for current user using raw SQL
+    # Get paused tasks for current user
     paused_rows = db.execute(text(
         "SELECT id, title, project_id, customer_id, data_content, "
         "instructions, status, assigned_to, created_at "
@@ -113,7 +167,6 @@ async def get_queue(
     ).all()
 
     if not active_batches:
-        # No batches — show all available tasks
         available_rows = db.execute(text(
             "SELECT id, title, project_id, customer_id, data_content, "
             "instructions, status, assigned_to, created_at "
@@ -172,7 +225,6 @@ async def claim_task(
     if not task:
         raise HTTPException(404, "Task not found")
 
-    # Allow resuming paused task
     if task.status == TaskStatus.paused and task.assigned_to == current_user.id:
         task.status = TaskStatus.in_progress
         log = TaskActivityLog(
@@ -186,7 +238,7 @@ async def claim_task(
         return {"message": "Task resumed", "task_id": task.id}
 
     if task.status != TaskStatus.available:
-        raise HTTPException(400, "Task not available — already claimed by another user")
+        raise HTTPException(400, "Task not available — already claimed")
 
     task.status = TaskStatus.in_progress
     task.assigned_to = current_user.id
@@ -219,7 +271,7 @@ async def pause_task(
     )
     db.add(log)
     db.commit()
-    return {"message": "Task paused - visible in your queue to resume"}
+    return {"message": "Task paused"}
 
 @router.put("/{task_id}/decline")
 async def decline_task(
@@ -240,7 +292,7 @@ async def decline_task(
     )
     db.add(log)
     db.commit()
-    return {"message": "Task declined and returned to queue"}
+    return {"message": "Task declined"}
 
 @router.put("/{task_id}/release")
 async def release_task(
@@ -261,7 +313,7 @@ async def release_task(
     )
     db.add(log)
     db.commit()
-    return {"message": "Task released back to queue"}
+    return {"message": "Task released"}
 
 @router.put("/{task_id}/reset")
 async def reset_task(

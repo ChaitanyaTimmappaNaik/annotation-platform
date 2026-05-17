@@ -12,6 +12,7 @@ import BatchManagement from "./pages/admin/BatchManagement";
 import TaskManagement from "./pages/admin/TaskManagement";
 import Analytics from "./pages/admin/Analytics";
 import ReviewQueue from "./pages/admin/ReviewQueue";
+import DatasetUpload from "./pages/admin/DatasetUpload";
 
 function ProtectedRoute({ children, requireAdmin = false }) {
   const token = localStorage.getItem("token");
@@ -63,6 +64,9 @@ export default function App() {
         <Route path="/admin/review" element={
           <ProtectedRoute requireAdmin><ReviewQueue /></ProtectedRoute>
         } />
+        <Route path="/admin/datasets" element={
+          <ProtectedRoute requireAdmin><DatasetUpload /></ProtectedRoute>
+        } />
 
         <Route path="/admin/settings" element={
           <ProtectedRoute requireAdmin>
@@ -87,11 +91,6 @@ export default function App() {
         <Route path="/admin/api-keys" element={
           <ProtectedRoute requireAdmin>
             <PlaceholderPage title="API Keys" description="Manage API access." icon="🔑" active="API Keys" />
-          </ProtectedRoute>
-        } />
-        <Route path="/admin/datasets" element={
-          <ProtectedRoute requireAdmin>
-            <PlaceholderPage title="Datasets" description="Upload and manage datasets." icon="📊" active="Datasets" />
           </ProtectedRoute>
         } />
       </Routes>
