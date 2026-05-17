@@ -55,12 +55,14 @@ export default function ProjectManagement() {
 
 useEffect(() => { fetchProjects(); }, [search, refreshKey]);
 
-  const fetchProjects = async () => {
-    try {
-      const res = await API.get("/projects/", { params: { search } });
-      setProjects(res.data);
-    } catch {}
-  };
+ const fetchProjects = async () => {
+  try {
+    const res = await API.get("/projects/", { params: { search } });
+    setProjects(res.data);
+  } catch {}
+};
+
+useEffect(() => { fetchProjects(); }, [search]);
 
   const handleEdit = (project) => {
     setEditProject(project);
@@ -190,7 +192,7 @@ useEffect(() => { fetchProjects(); }, [search, refreshKey]);
                     placeholder="Search projects"
                     value={search} onChange={e => setSearch(e.target.value)} />
                 </div>
-                <button className="aws-btn-normal" onClick={() => setRefreshKey(k => k + 1)}>Refresh</button>
+                <button className="aws-btn-normal" onClick={() => fetchProjects()}>Refresh</button>
                 <button className="aws-btn-primary" onClick={() => navigate("/admin/projects/new")}>
                   Create project
                 </button>
