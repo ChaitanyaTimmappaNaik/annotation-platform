@@ -9,7 +9,6 @@ export default function QueueDashboard() {
   const [notification, setNotification] = useState(null);
   const [sortField, setSortField] = useState(null);
   const [sortDir, setSortDir] = useState("asc");
-  const [openSort, setOpenSort] = useState(null);
   const wsRef = useRef(null);
   const username = localStorage.getItem("username");
   const userId = parseInt(localStorage.getItem("user_id") || "0");
@@ -70,32 +69,23 @@ export default function QueueDashboard() {
     navigate("/login");
   };
 
-  const handleSort = (field, dir) => {
-    setSortField(field);
-    setSortDir(dir);
-    setOpenSort(null);
+  // Double-click title column to toggle sort
+  const handleTitleDoubleClick = () => {
+    if (sortField === "id") {
+      // Toggle direction
+      setSortDir(prev => prev === "asc" ? "desc" : "asc");
+    } else {
+      // First double-click — sort by task id asc
+      setSortField("id");
+      setSortDir("asc");
+    }
   };
 
   const getSortedTasks = () => {
     if (!sortField) return tasks;
     return [...tasks].sort((a, b) => {
-      let valA, valB;
-      if (sortField === "title") {
-        valA = a.title?.toLowerCase() || "";
-        valB = b.title?.toLowerCase() || "";
-      } else if (sortField === "id") {
-        valA = a.id;
-        valB = b.id;
-      } else if (sortField === "status") {
-        valA = a.status?.toLowerCase() || "";
-        valB = b.status?.toLowerCase() || "";
-      } else if (sortField === "created_at") {
-        valA = new Date(a.created_at);
-        valB = new Date(b.created_at);
-      } else if (sortField === "customer_id") {
-        valA = a.customer_id?.toLowerCase() || "";
-        valB = b.customer_id?.toLowerCase() || "";
-      }
+      let valA = a[sortField];
+      let valB = b[sortField];
       if (valA < valB) return sortDir === "asc" ? -1 : 1;
       if (valA > valB) return sortDir === "asc" ? 1 : -1;
       return 0;
@@ -123,131 +113,19 @@ export default function QueueDashboard() {
     );
   };
 
-  const SortDropdown = ({ field, label }) => (
-    <th style={{ padding: "10px 16px", textAlign: "left",
-      fontSize: 12, fontWeight: 700, color: "#16191f", position: "relative",
-      userSelect: "none" }}>
-      <span
-        onDoubleClick={() => setOpenSort(openSort === field ? null : field)}
-        style={{ cursor: "pointer", display: "flex", alignItems: "center", gap: 4 }}>
-        {label}
-        <span style={{ fontSize: 10, color: "#687078" }}>
-          {sortField === field ? (sortDir === "asc" ? " ▲" : " ▼") : " ⇅"}
-        </span>
-      </span>
-
-      {/* Dropdown */}
-      {openSort === field && (
-        <div style={{ position: "absolute", top: "100%", left: 0,
-          background: "white", border: "1px solid #D5DBDB",
-          borderRadius: 2, zIndex: 100, minWidth: 160,
-          boxShadow: "0 2px 8px rgba(0,0,0,0.1)" }}>
-          <div style={{ padding: "6px 8px", fontSize: 11,
-            color: "#687078", borderBottom: "1px solid #eaeded",
-            fontWeight: 700 }}>
-            Sort by {label}
-          </div>
-          {field === "title" && (
-            <>
-              <div onClick={() => handleSort("title", "asc")}
-                style={{ padding: "8px 12px", cursor: "pointer", fontSize: 13,
-                  background: sortField === "title" && sortDir === "asc" ? "#F0F8FF" : "white" }}
-                onMouseEnter={e => e.target.style.background = "#F0F8FF"}
-                onMouseLeave={e => e.target.style.background =
-                  sortField === "title" && sortDir === "asc" ? "#F0F8FF" : "white"}>
-                🔤 A → Z
-              </div>
-              <div onClick={() => handleSort("title", "desc")}
-                style={{ padding: "8px 12px", cursor: "pointer", fontSize: 13,
-                  background: sortField === "title" && sortDir === "desc" ? "#F0F8FF" : "white" }}
-                onMouseEnter={e => e.target.style.background = "#F0F8FF"}
-                onMouseLeave={e => e.target.style.background =
-                  sortField === "title" && sortDir === "desc" ? "#F0F8FF" : "white"}>
-                🔤 Z → A
-              </div>
-              <div onClick={() => handleSort("id", "asc")}
-                style={{ padding: "8px 12px", cursor: "pointer", fontSize: 13 }}
-                onMouseEnter={e => e.target.style.background = "#F0F8FF"}
-                onMouseLeave={e => e.target.style.background = "white"}>
-                🔢 Task # Low → High
-              </div>
-              <div onClick={() => handleSort("id", "desc")}
-                style={{ padding: "8px 12px", cursor: "pointer", fontSize: 13 }}
-                onMouseEnter={e => e.target.style.background = "#F0F8FF"}
-                onMouseLeave={e => e.target.style.background = "white"}>
-                🔢 Task # High → Low
-              </div>
-            </>
-          )}
-          {field === "customer_id" && (
-            <>
-              <div onClick={() => handleSort("customer_id", "asc")}
-                style={{ padding: "8px 12px", cursor: "pointer", fontSize: 13 }}
-                onMouseEnter={e => e.target.style.background = "#F0F8FF"}
-                onMouseLeave={e => e.target.style.background = "white"}>
-                🔤 A → Z
-              </div>
-              <div onClick={() => handleSort("customer_id", "desc")}
-                style={{ padding: "8px 12px", cursor: "pointer", fontSize: 13 }}
-                onMouseEnter={e => e.target.style.background = "#F0F8FF"}
-                onMouseLeave={e => e.target.style.background = "white"}>
-                🔤 Z → A
-              </div>
-            </>
-          )}
-          {field === "status" && (
-            <>
-              <div onClick={() => handleSort("status", "asc")}
-                style={{ padding: "8px 12px", cursor: "pointer", fontSize: 13 }}
-                onMouseEnter={e => e.target.style.background = "#F0F8FF"}
-                onMouseLeave={e => e.target.style.background = "white"}>
-                Available first
-              </div>
-              <div onClick={() => handleSort("status", "desc")}
-                style={{ padding: "8px 12px", cursor: "pointer", fontSize: 13 }}
-                onMouseEnter={e => e.target.style.background = "#F0F8FF"}
-                onMouseLeave={e => e.target.style.background = "white"}>
-                In Progress first
-              </div>
-            </>
-          )}
-          {field === "created_at" && (
-            <>
-              <div onClick={() => handleSort("created_at", "desc")}
-                style={{ padding: "8px 12px", cursor: "pointer", fontSize: 13 }}
-                onMouseEnter={e => e.target.style.background = "#F0F8FF"}
-                onMouseLeave={e => e.target.style.background = "white"}>
-                🕐 Newest first
-              </div>
-              <div onClick={() => handleSort("created_at", "asc")}
-                style={{ padding: "8px 12px", cursor: "pointer", fontSize: 13 }}
-                onMouseEnter={e => e.target.style.background = "#F0F8FF"}
-                onMouseLeave={e => e.target.style.background = "white"}>
-                🕐 Oldest first
-              </div>
-            </>
-          )}
-          <div onClick={() => { setSortField(null); setOpenSort(null); }}
-            style={{ padding: "8px 12px", cursor: "pointer", fontSize: 13,
-              borderTop: "1px solid #eaeded", color: "#D13212" }}
-            onMouseEnter={e => e.target.style.background = "#FDEDEC"}
-            onMouseLeave={e => e.target.style.background = "white"}>
-            ✕ Clear sort
-          </div>
-        </div>
-      )}
-    </th>
-  );
-
   const selectedTask = tasks.find(t => t.id === selected);
   const isResumeTask = selectedTask?.status === "in_progress" ||
                        selectedTask?.status === "paused";
   const sortedTasks = getSortedTasks();
 
+  const thStyle = {
+    padding: "10px 16px", textAlign: "left",
+    fontSize: 12, fontWeight: 700, color: "#16191f"
+  };
+
   return (
     <div style={{ minHeight: "100vh", background: "#F2F3F3",
-      display: "flex", flexDirection: "column" }}
-      onClick={() => setOpenSort(null)}>
+      display: "flex", flexDirection: "column" }}>
 
       {/* Top Nav */}
       <div style={{ background: "#232F3E", padding: "6px 20px", color: "white",
@@ -289,11 +167,6 @@ export default function QueueDashboard() {
           alignItems: "center", marginBottom: 12 }}>
           <h2 style={{ fontSize: 18, fontWeight: 700, color: "#16191f" }}>
             Jobs ({tasks.length})
-            {sortField && (
-              <span style={{ fontSize: 12, fontWeight: 400, color: "#687078", marginLeft: 8 }}>
-                sorted by {sortField} ({sortDir})
-              </span>
-            )}
           </h2>
           <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
             <button onClick={fetchQueue}
@@ -331,22 +204,30 @@ export default function QueueDashboard() {
           </div>
         </div>
 
-        {/* Hint */}
-        <p style={{ fontSize: 11, color: "#aab7b8", marginBottom: 4 }}>
-          💡 Double-click any column header to sort
-        </p>
-
         {/* Table */}
         <div style={{ background: "white", border: "1px solid #D5DBDB", borderRadius: 2 }}>
           <table style={{ width: "100%", borderCollapse: "collapse" }}>
             <thead>
-              <tr style={{ background: "#FAFAFA", borderBottom: "1px solid #D5DBDB" }}
-                onClick={e => e.stopPropagation()}>
+              <tr style={{ background: "#FAFAFA", borderBottom: "1px solid #D5DBDB" }}>
                 <th style={{ width: 40, padding: "10px 16px" }}></th>
-                <SortDropdown field="title" label="Task Title" />
-                <SortDropdown field="customer_id" label="Customer ID" />
-                <SortDropdown field="status" label="Status" />
-                <SortDropdown field="created_at" label="Created" />
+
+                {/* Task Title — double click to sort */}
+                <th style={{ ...thStyle, cursor: "pointer", userSelect: "none" }}
+                  onDoubleClick={handleTitleDoubleClick}
+                  title="Double-click to sort by task number">
+                  Task Title{" "}
+                  {sortField === "id" ? (
+                    <span style={{ color: "#FF9900" }}>
+                      {sortDir === "asc" ? "▲" : "▼"}
+                    </span>
+                  ) : (
+                    <span style={{ color: "#aab7b8", fontSize: 10 }}>⇅</span>
+                  )}
+                </th>
+
+                <th style={thStyle}>Customer ID</th>
+                <th style={thStyle}>Status</th>
+                <th style={thStyle}>Created</th>
               </tr>
             </thead>
             <tbody>
@@ -410,6 +291,10 @@ export default function QueueDashboard() {
               color: "#aab7b8", cursor: "pointer" }}>›</button>
           </div>
         </div>
+
+        <p style={{ fontSize: 11, color: "#aab7b8", marginTop: 6 }}>
+          💡 Double-click "Task Title" to sort by task number ▲▼
+        </p>
       </div>
     </div>
   );
