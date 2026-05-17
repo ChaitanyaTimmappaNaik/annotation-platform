@@ -1,5 +1,4 @@
 import { useState, useEffect } from "react";
-import { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import API from "../../api/client";
 import { AwsTopNav } from "./AdminDashboard";
@@ -51,18 +50,14 @@ export default function ProjectManagement() {
   const navigate = useNavigate();
   const username = localStorage.getItem("username");
 
-  const [refreshKey, setRefreshKey] = useState(0);
+  const fetchProjects = async () => {
+    try {
+      const res = await API.get("/projects/", { params: { search } });
+      setProjects(res.data);
+    } catch {}
+  };
 
-useEffect(() => { fetchProjects(); }, [search, refreshKey]);
-
- const fetchProjects = async () => {
-  try {
-    const res = await API.get("/projects/", { params: { search } });
-    setProjects(res.data);
-  } catch {}
-};
-
-useEffect(() => { fetchProjects(); }, [search]);
+  useEffect(() => { fetchProjects(); }, [search]);
 
   const handleEdit = (project) => {
     setEditProject(project);
@@ -135,35 +130,36 @@ useEffect(() => { fetchProjects(); }, [search]);
               <h3 style={{ fontSize: 15, fontWeight: 700, marginBottom: 16, marginTop: 0 }}>
                 Edit Project — {editProject.name}
               </h3>
-              <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 12, marginBottom: 16 }}>
+              <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr",
+                gap: 12, marginBottom: 16 }}>
                 <div>
-                  <label style={{ fontSize: 12, fontWeight: 700, display: "block", marginBottom: 4 }}>
+                  <label style={{ fontSize: 12, fontWeight: 700,
+                    display: "block", marginBottom: 4 }}>
                     Project Name *
                   </label>
                   <input className="aws-input" type="text"
                     value={editForm.name}
-                    onChange={e => setEditForm({...editForm, name: e.target.value})}
-                  />
+                    onChange={e => setEditForm({...editForm, name: e.target.value})} />
                 </div>
                 <div>
-                  <label style={{ fontSize: 12, fontWeight: 700, display: "block", marginBottom: 4 }}>
+                  <label style={{ fontSize: 12, fontWeight: 700,
+                    display: "block", marginBottom: 4 }}>
                     Customer ID
                   </label>
                   <input className="aws-input" type="text"
                     placeholder="e.g. CUST-001"
                     value={editForm.customer_id}
-                    onChange={e => setEditForm({...editForm, customer_id: e.target.value})}
-                  />
+                    onChange={e => setEditForm({...editForm, customer_id: e.target.value})} />
                 </div>
                 <div>
-                  <label style={{ fontSize: 12, fontWeight: 700, display: "block", marginBottom: 4 }}>
+                  <label style={{ fontSize: 12, fontWeight: 700,
+                    display: "block", marginBottom: 4 }}>
                     Description
                   </label>
                   <input className="aws-input" type="text"
                     placeholder="Project description"
                     value={editForm.description}
-                    onChange={e => setEditForm({...editForm, description: e.target.value})}
-                  />
+                    onChange={e => setEditForm({...editForm, description: e.target.value})} />
                 </div>
               </div>
               <div style={{ display: "flex", gap: 8 }}>
@@ -187,13 +183,18 @@ useEffect(() => { fetchProjects(); }, [search]);
               </h2>
               <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
                 <div style={{ position: "relative" }}>
-                  <span style={{ position: "absolute", left: 8, top: 7, color: "#687078", fontSize: 13 }}>🔍</span>
+                  <span style={{ position: "absolute", left: 8, top: 7,
+                    color: "#687078", fontSize: 13 }}>🔍</span>
                   <input className="aws-input" style={{ paddingLeft: 28, width: 240 }}
                     placeholder="Search projects"
-                    value={search} onChange={e => setSearch(e.target.value)} />
+                    value={search}
+                    onChange={e => setSearch(e.target.value)} />
                 </div>
-                <button className="aws-btn-normal" onClick={() => fetchProjects()}>Refresh</button>
-                <button className="aws-btn-primary" onClick={() => navigate("/admin/projects/new")}>
+                <button className="aws-btn-normal" onClick={fetchProjects}>
+                  Refresh
+                </button>
+                <button className="aws-btn-primary"
+                  onClick={() => navigate("/admin/projects/new")}>
                   Create project
                 </button>
               </div>
@@ -213,7 +214,8 @@ useEffect(() => { fetchProjects(); }, [search]);
               <tbody>
                 {projects.length === 0 ? (
                   <tr>
-                    <td colSpan="6" style={{ textAlign: "center", padding: 40, color: "#687078" }}>
+                    <td colSpan="6" style={{ textAlign: "center",
+                      padding: 40, color: "#687078" }}>
                       No projects found. Click "Create project" to get started.
                     </td>
                   </tr>
@@ -227,13 +229,17 @@ useEffect(() => { fetchProjects(); }, [search]);
                       </td>
                       <td>
                         <span style={{ background: "#E8F4FD", color: "#0073BB",
-                          padding: "2px 8px", borderRadius: 2, fontSize: 12, fontWeight: 600 }}>
+                          padding: "2px 8px", borderRadius: 2,
+                          fontSize: 12, fontWeight: 600 }}>
                           {project.data_type}
                         </span>
                       </td>
-                      <td style={{ color: "#687078" }}>{project.customer_id || "—"}</td>
+                      <td style={{ color: "#687078" }}>
+                        {project.customer_id || "—"}
+                      </td>
                       <td style={{ color: "#687078", maxWidth: 200,
-                        overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                        overflow: "hidden", textOverflow: "ellipsis",
+                        whiteSpace: "nowrap" }}>
                         {project.description || "—"}
                       </td>
                       <td style={{ color: "#687078" }}>
@@ -265,9 +271,11 @@ useEffect(() => { fetchProjects(); }, [search]);
 
             <div style={{ padding: "8px 16px", borderTop: "1px solid #eaeded",
               display: "flex", justifyContent: "flex-end", gap: 8 }}>
-              <button style={{ background: "none", border: "none", color: "#aab7b8", cursor: "pointer" }}>‹</button>
+              <button style={{ background: "none", border: "none",
+                color: "#aab7b8", cursor: "pointer" }}>‹</button>
               <span style={{ fontSize: 13 }}>1</span>
-              <button style={{ background: "none", border: "none", color: "#aab7b8", cursor: "pointer" }}>›</button>
+              <button style={{ background: "none", border: "none",
+                color: "#aab7b8", cursor: "pointer" }}>›</button>
             </div>
           </div>
         </div>
