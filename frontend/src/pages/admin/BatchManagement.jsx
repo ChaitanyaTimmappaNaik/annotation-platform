@@ -9,6 +9,7 @@ function AwsSidebar({ active }) {
     { label: "Dashboard", icon: "⊞", path: "/admin/dashboard" },
     { label: "Projects", icon: "📁", path: "/admin/projects" },
     { label: "Batches", icon: "📦", path: "/admin/batches" },
+    { label: "Tasks", icon: "📋", path: "/admin/tasks" },
     { label: "Users", icon: "👥", path: "/admin/users" },
     { label: "Export", icon: "📤", path: "/admin/export" },
     { label: "Settings", icon: "⚙️", path: "/admin/settings" },
@@ -52,9 +53,7 @@ export default function BatchManagement() {
   const navigate = useNavigate();
   const username = localStorage.getItem("username");
 
-  useEffect(() => {
-    fetchAll();
-  }, []);
+  useEffect(() => { fetchAll(); }, []);
 
   const fetchAll = async () => {
     try {
@@ -93,9 +92,7 @@ export default function BatchManagement() {
 
   const handleUpdateTimeLimit = async (batchId) => {
     try {
-      await API.put(`/batches/${batchId}`, {
-        time_limit: parseInt(editTimeLimit)
-      });
+      await API.put(`/batches/${batchId}`, { time_limit: parseInt(editTimeLimit) });
       setSuccess("Time limit updated! All users notified instantly.");
       setEditBatch(null);
       fetchAll();
@@ -148,8 +145,7 @@ export default function BatchManagement() {
               borderRadius: 2, fontSize: 13, marginBottom: 16, color: "#1D8102" }}>
               ✅ {success}
               <button onClick={() => setSuccess("")}
-                style={{ float: "right", background: "none", border: "none",
-                  cursor: "pointer", color: "#1D8102" }}>×</button>
+                style={{ float: "right", background: "none", border: "none", cursor: "pointer" }}>×</button>
             </div>
           )}
 
@@ -159,8 +155,7 @@ export default function BatchManagement() {
               borderRadius: 2, fontSize: 13, marginBottom: 16, color: "#D13212" }}>
               ⚠️ {error}
               <button onClick={() => setError("")}
-                style={{ float: "right", background: "none", border: "none",
-                  cursor: "pointer", color: "#D13212" }}>×</button>
+                style={{ float: "right", background: "none", border: "none", cursor: "pointer" }}>×</button>
             </div>
           )}
 
@@ -195,15 +190,15 @@ export default function BatchManagement() {
                 </div>
                 <div>
                   <label style={{ fontSize: 12, fontWeight: 700, display: "block", marginBottom: 4 }}>
-                    Tasks Per User
+                    Tasks Per Batch
                   </label>
-                  <input className="aws-input" type="number" min="1" max="50"
+                  <input className="aws-input" type="number" min="1" max="500"
                     value={form.tasks_per_user}
                     onChange={e => setForm({...form, tasks_per_user: e.target.value})} />
                 </div>
                 <div>
                   <label style={{ fontSize: 12, fontWeight: 700, display: "block", marginBottom: 4 }}>
-                    Time Limit (seconds)
+                    Time Limit Per Task
                   </label>
                   <select className="aws-input"
                     value={form.time_limit}
@@ -219,19 +214,25 @@ export default function BatchManagement() {
               {/* User Selection */}
               <div style={{ marginBottom: 16 }}>
                 <label style={{ fontSize: 12, fontWeight: 700, display: "block", marginBottom: 8 }}>
-                  Assign Users * ({form.user_ids.length} selected)
+                  Assign Annotators * ({form.user_ids.length} selected)
                 </label>
                 <div style={{ display: "flex", flexWrap: "wrap", gap: 8 }}>
-                  {users.map(u => (
-                    <div key={u.id} onClick={() => toggleUser(u.id)}
-                      style={{ padding: "6px 12px", borderRadius: 2, cursor: "pointer",
-                        border: form.user_ids.includes(u.id)
-                          ? "2px solid #FF9900" : "1px solid #D5DBDB",
-                        background: form.user_ids.includes(u.id) ? "#FFFBF5" : "white",
-                        fontSize: 13 }}>
-                      {form.user_ids.includes(u.id) ? "✅" : "○"} {u.username}
-                    </div>
-                  ))}
+                  {users.length === 0 ? (
+                    <p style={{ fontSize: 12, color: "#687078" }}>
+                      No active annotators found. Create users first.
+                    </p>
+                  ) : (
+                    users.map(u => (
+                      <div key={u.id} onClick={() => toggleUser(u.id)}
+                        style={{ padding: "6px 12px", borderRadius: 2, cursor: "pointer",
+                          border: form.user_ids.includes(u.id)
+                            ? "2px solid #FF9900" : "1px solid #D5DBDB",
+                          background: form.user_ids.includes(u.id) ? "#FFFBF5" : "white",
+                          fontSize: 13 }}>
+                        {form.user_ids.includes(u.id) ? "✅" : "○"} {u.username}
+                      </div>
+                    ))
+                  )}
                 </div>
               </div>
 
@@ -268,8 +269,8 @@ export default function BatchManagement() {
                 <tr>
                   <th>Batch Name</th>
                   <th>Project</th>
-                  <th>Users</th>
-                  <th>Tasks/User</th>
+                  <th>Annotators</th>
+                  <th>Tasks/Batch</th>
                   <th>Time Limit</th>
                   <th>Status</th>
                   <th>Actions</th>
@@ -292,10 +293,10 @@ export default function BatchManagement() {
                       <td>
                         <span style={{ background: "#E8F4FD", color: "#0073BB",
                           padding: "2px 8px", borderRadius: 2, fontSize: 12, fontWeight: 600 }}>
-                          {batch.assigned_users} users
+                          {batch.assigned_users} annotators
                         </span>
                       </td>
-                      <td style={{ color: "#16191f" }}>{batch.tasks_per_user}</td>
+                      <td style={{ color: "#16191f" }}>{batch.tasks_per_user} tasks</td>
                       <td>
                         {editBatch === batch.id ? (
                           <div style={{ display: "flex", gap: 4, alignItems: "center" }}>
@@ -344,12 +345,10 @@ export default function BatchManagement() {
                         </span>
                       </td>
                       <td>
-                        <div style={{ display: "flex", gap: 8 }}>
-                          <span className="aws-link"
-                            onClick={() => handlePauseBatch(batch.id, batch.status)}>
-                            {batch.status === "active" ? "Pause" : "Resume"}
-                          </span>
-                        </div>
+                        <span className="aws-link"
+                          onClick={() => handlePauseBatch(batch.id, batch.status)}>
+                          {batch.status === "active" ? "Pause" : "Resume"}
+                        </span>
                       </td>
                     </tr>
                   ))
