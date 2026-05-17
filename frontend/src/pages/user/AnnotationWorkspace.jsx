@@ -12,6 +12,7 @@ export default function AnnotationWorkspace() {
   const [timeLeft, setTimeLeft] = useState(29 * 60 + 59);
   const [activeTab, setActiveTab] = useState("annotations");
   const [submitted, setSubmitted] = useState(false);
+  const [timerRunning, setTimerRunning] = useState(true);
   const timerRef = useRef(null);
   const navigate = useNavigate();
   const username = localStorage.getItem("username");
@@ -21,7 +22,7 @@ export default function AnnotationWorkspace() {
     startTimer();
     const releaseOnLeave = () => {
       if (!submitted) {
-        navigator.sendBeacon(`http://127.0.0.1:8000/tasks/${taskId}/release`);
+        navigator.sendBeacon(`https://annotation-platform-m7im.onrender.com/tasks/${taskId}/release`);
       }
     };
     window.addEventListener("beforeunload", releaseOnLeave);
@@ -33,10 +34,14 @@ export default function AnnotationWorkspace() {
 
   const startTimer = () => {
     clearInterval(timerRef.current);
-    setTimeLeft(29 * 60 + 59);
+    setTimerRunning(true);
     timerRef.current = setInterval(() => {
       setTimeLeft(prev => {
-        if (prev <= 0) { clearInterval(timerRef.current); handleTimeExpired(); return 0; }
+        if (prev <= 0) {
+          clearInterval(timerRef.current);
+          handleTimeExpired();
+          return 0;
+        }
         return prev - 1;
       });
     }, 1000);
@@ -81,59 +86,54 @@ export default function AnnotationWorkspace() {
 
   const removeLabel = (index) => setLabels(prev => prev.filter((_, i) => i !== index));
 
-  const releaseAndGo = async () => {
+  const handleDeclineTask = async () => {
+    if (!confirm("Decline this task? It will be returned to the queue.")) return;
     try { await API.put(`/tasks/${taskId}/release`); } catch {}
     clearInterval(timerRef.current);
     navigate("/queue");
   };
 
-  const handleDeclineTask = async () => {
-    if (!confirm("Decline this task? It will be returned to the queue.")) return;
-    releaseAndGo();
-  };
-
   const handleReleaseTask = async () => {
     if (!confirm("Release this task? It will be available for others.")) return;
-    releaseAndGo();
+    try { await API.put(`/tasks/${taskId}/release`); } catch {}
+    clearInterval(timerRef.current);
+    navigate("/queue");
   };
 
-  const handleSkipTask = () => releaseAndGo();
-
-  const handleStopResume = async () => {
-  if (!confirm("Stop and resume later? Task will be saved in your queue.")) return;
-  try {
-    await API.put(`/tasks/${taskId}/pause`);
-    clearInterval(timerRef.current);
-    alert("Task paused! You can resume it from your queue.");
+  const handleStopResume = () => {
+    // Just navigate back to queue - task stays In Progress
+    // Timer will continue when user comes back
     navigate("/queue");
-  } catch {
-    alert("Could not pause task.");
-  }
-};
+  };
 
   const handleSaveAnnotation = async () => {
     if (labels.length === 0) { alert("Please add at least one label."); return; }
     try {
-      await API.post(`/annotations/tasks/${taskId}`, { label_data: { spans: labels }, notes });
+      const timeSpent = (29 * 60 + 59) - timeLeft;
+      await API.post(`/annotations/tasks/${taskId}`, {
+        label_data: { spans: labels },
+        notes,
+        time_spent: timeSpent
+      });
       alert("Annotations saved!");
     } catch { alert("Could not save."); }
   };
 
   const handleSubmitTask = async () => {
-  if (labels.length === 0) { alert("Please add at least one label."); return; }
-  const timeSpent = (29 * 60 + 59) - timeLeft;
-  try {
-    await API.post(`/annotations/tasks/${taskId}`, {
-      label_data: { spans: labels },
-      notes: notes,
-      time_spent: timeSpent
-    });
-    setSubmitted(true);
-    clearInterval(timerRef.current);
-    alert("Task submitted successfully!");
-    navigate("/queue");
-  } catch { alert("Could not submit."); }
-};
+    if (labels.length === 0) { alert("Please add at least one label."); return; }
+    try {
+      const timeSpent = (29 * 60 + 59) - timeLeft;
+      await API.post(`/annotations/tasks/${taskId}`, {
+        label_data: { spans: labels },
+        notes,
+        time_spent: timeSpent
+      });
+      setSubmitted(true);
+      clearInterval(timerRef.current);
+      alert("Task submitted successfully!");
+      navigate("/queue");
+    } catch { alert("Could not submit."); }
+  };
 
   if (!task) return (
     <div style={{ minHeight: "100vh", display: "flex", alignItems: "center", justifyContent: "center" }}>
@@ -158,17 +158,25 @@ export default function AnnotationWorkspace() {
           <span style={{ color: "#aab7b8" }}>|</span>
           <span>Task description: <strong>{task.title}</strong></span>
           <span style={{ color: "#aab7b8" }}>|</span>
-          <span className={isUrgent ? "timer-urgent" : ""} style={{ fontWeight: 700, color: isUrgent ? "#ff6b6b" : "#FF9900" }}>
+          <span style={{
+            fontWeight: 700,
+            color: isUrgent ? "#ff6b6b" : "#FF9900",
+            animation: isUrgent ? "blink 1s infinite" : "none"
+          }}>
             Task time: {formatTime(timeLeft)} of 29 Min 59 Sec
           </span>
         </div>
         <div style={{ display: "flex", gap: 8 }}>
-          {["Decline task", "Release task", "Skip task", "Stop and resume later"].map((btn, i) => (
-            <button key={btn}
-              onClick={[handleDeclineTask, handleReleaseTask, handleSkipTask, handleStopResume][i]}
-              style={{ background: "transparent", border: "1px solid #aab7b8", color: "white",
-                padding: "4px 10px", borderRadius: 2, fontSize: 11, cursor: "pointer", whiteSpace: "nowrap" }}>
-              {btn}
+          {[
+            { label: "Decline task", action: handleDeclineTask },
+            { label: "Release task", action: handleReleaseTask },
+            { label: "Stop and resume later", action: handleStopResume },
+          ].map(btn => (
+            <button key={btn.label} onClick={btn.action}
+              style={{ background: "transparent", border: "1px solid #aab7b8",
+                color: "white", padding: "4px 10px", borderRadius: 2,
+                fontSize: 11, cursor: "pointer", whiteSpace: "nowrap" }}>
+              {btn.label}
             </button>
           ))}
         </div>
@@ -177,12 +185,14 @@ export default function AnnotationWorkspace() {
       {/* Instructions Bar */}
       <div style={{ background: "#F2F3F3", borderBottom: "1px solid #D5DBDB",
         padding: "6px 20px", display: "flex", alignItems: "center", gap: 12 }}>
-        <button className="aws-link" style={{ fontSize: 13, fontWeight: 700, background: "none", border: "none" }}
+        <button style={{ color: "#0073BB", fontSize: 13, fontWeight: 700,
+          background: "none", border: "none", cursor: "pointer" }}
           onClick={() => setShowInstructions(!showInstructions)}>
           {showInstructions ? "Hide instructions" : "View instructions"}
         </button>
         {showInstructions && (
-          <span style={{ fontSize: 13, color: "#16191f", borderLeft: "1px solid #D5DBDB", paddingLeft: 12 }}>
+          <span style={{ fontSize: 13, color: "#16191f",
+            borderLeft: "1px solid #D5DBDB", paddingLeft: 12 }}>
             {task.instructions || "No instructions provided."}
           </span>
         )}
@@ -192,53 +202,68 @@ export default function AnnotationWorkspace() {
       <div style={{ display: "flex", flex: 1, overflow: "hidden" }}>
 
         {/* Left - Document */}
-        <div style={{ flex: 1, padding: 24, overflowY: "auto", borderRight: "1px solid #D5DBDB" }}>
+        <div style={{ flex: 1, padding: 24, overflowY: "auto",
+          borderRight: "1px solid #D5DBDB" }}>
 
-          {/* Title + Buttons */}
-          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: 16 }}>
+          <div style={{ display: "flex", justifyContent: "space-between",
+            alignItems: "flex-start", marginBottom: 16 }}>
             <div>
               <h2 style={{ fontSize: 16, fontWeight: 700, color: "#16191f", margin: 0 }}>
                 Document Annotation Task{" "}
-                <span className="aws-link" style={{ fontSize: 13, fontWeight: 400 }}>Task Details</span>
+                <span style={{ color: "#0073BB", fontSize: 13,
+                  fontWeight: 400, cursor: "pointer" }}>
+                  Task Details
+                </span>
               </h2>
               <p style={{ fontSize: 12, color: "#687078", marginTop: 4 }}>
                 Label entities in the provided document
               </p>
             </div>
             <div style={{ display: "flex", gap: 8 }}>
-              <button className="aws-btn-normal" onClick={handleSaveAnnotation}>
+              <button onClick={handleSaveAnnotation}
+                style={{ background: "white", border: "1px solid #0073BB",
+                  color: "#0073BB", padding: "6px 16px", borderRadius: 2,
+                  fontSize: 13, cursor: "pointer" }}>
                 Save Annotations
               </button>
-              <button className="aws-btn-primary" onClick={handleSubmitTask}>
+              <button onClick={handleSubmitTask}
+                style={{ background: "#FF9900", border: "1px solid #EC7211",
+                  color: "black", padding: "6px 16px", borderRadius: 2,
+                  fontSize: 13, fontWeight: 700, cursor: "pointer" }}>
                 Submit Task
               </button>
             </div>
           </div>
 
           {/* Document Text */}
-          <div
-            style={{ padding: 16, background: "#FAFAFA", border: "1px solid #D5DBDB",
-              borderRadius: 2, fontSize: 13, lineHeight: 1.8, color: "#16191f",
-              userSelect: "text", cursor: "text", minHeight: 200 }}
-            onMouseUp={handleTextSelection}>
+          <div onMouseUp={handleTextSelection}
+            style={{ padding: 16, background: "#FAFAFA",
+              border: "1px solid #D5DBDB", borderRadius: 2,
+              fontSize: 13, lineHeight: 1.8, color: "#16191f",
+              userSelect: "text", cursor: "text", minHeight: 200 }}>
             {task.data_content || "No content available."}
           </div>
 
           {/* Label Picker */}
           {selectedText && (
-            <div className="aws-warning-banner" style={{ marginTop: 12 }}>
-              <p style={{ fontSize: 13, fontWeight: 700, marginBottom: 8 }}>
+            <div style={{ marginTop: 12, background: "#FEF9E7",
+              border: "1px solid #FF9900", borderRadius: 2, padding: 12 }}>
+              <p style={{ fontSize: 13, fontWeight: 700, marginBottom: 8, margin: "0 0 8px" }}>
                 Selected: "<em style={{ color: "#0073BB" }}>{selectedText.text}</em>" — Choose a label:
               </p>
-              <div style={{ display: "flex", flexWrap: "wrap", gap: 8 }}>
+              <div style={{ display: "flex", flexWrap: "wrap", gap: 8, marginTop: 8 }}>
                 {ontologyLabels.map(label => (
                   <button key={label} onClick={() => addLabel(label)}
-                    className="aws-btn-primary" style={{ padding: "4px 12px", fontSize: 12 }}>
+                    style={{ background: "#FF9900", border: "1px solid #EC7211",
+                      color: "black", padding: "4px 12px", borderRadius: 2,
+                      fontSize: 12, fontWeight: 700, cursor: "pointer" }}>
                     {label}
                   </button>
                 ))}
                 <button onClick={() => setSelectedText(null)}
-                  className="aws-btn-normal" style={{ padding: "4px 12px", fontSize: 12 }}>
+                  style={{ background: "white", border: "1px solid #D5DBDB",
+                    color: "#687078", padding: "4px 12px", borderRadius: 2,
+                    fontSize: 12, cursor: "pointer" }}>
                   Cancel
                 </button>
               </div>
@@ -247,21 +272,26 @@ export default function AnnotationWorkspace() {
 
           {/* Labeled Spans */}
           {labels.length > 0 && (
-            <div style={{ marginTop: 12, border: "1px solid #D5DBDB", borderRadius: 2, background: "white" }}>
-              <div style={{ padding: "8px 16px", background: "#FAFAFA", borderBottom: "1px solid #D5DBDB" }}>
+            <div style={{ marginTop: 12, border: "1px solid #D5DBDB",
+              borderRadius: 2, background: "white" }}>
+              <div style={{ padding: "8px 16px", background: "#FAFAFA",
+                borderBottom: "1px solid #D5DBDB" }}>
                 <strong style={{ fontSize: 13 }}>Labeled Spans ({labels.length})</strong>
               </div>
               {labels.map((l, i) => (
-                <div key={i} style={{ display: "flex", alignItems: "center", gap: 8,
-                  padding: "8px 16px", borderBottom: "1px solid #eaeded", fontSize: 13 }}>
-                  <span style={{ background: "#FF9900", color: "black", padding: "2px 8px",
-                    borderRadius: 2, fontSize: 11, fontWeight: 700 }}>
+                <div key={i} style={{ display: "flex", alignItems: "center",
+                  gap: 8, padding: "8px 16px",
+                  borderBottom: "1px solid #eaeded", fontSize: 13 }}>
+                  <span style={{ background: "#FF9900", color: "black",
+                    padding: "2px 8px", borderRadius: 2,
+                    fontSize: 11, fontWeight: 700 }}>
                     {l.label}
                   </span>
                   <span style={{ color: "#16191f", flex: 1 }}>"{l.text}"</span>
                   <button onClick={() => removeLabel(i)}
-                    style={{ background: "none", border: "none", color: "#D13212",
-                      cursor: "pointer", fontSize: 16, fontWeight: 700 }}>×</button>
+                    style={{ background: "none", border: "none",
+                      color: "#D13212", cursor: "pointer",
+                      fontSize: 16, fontWeight: 700 }}>×</button>
                 </div>
               ))}
             </div>
@@ -269,22 +299,28 @@ export default function AnnotationWorkspace() {
         </div>
 
         {/* Right - Annotations Panel */}
-        <div style={{ width: 300, background: "#FAFAFA", display: "flex", flexDirection: "column", borderLeft: "1px solid #D5DBDB" }}>
+        <div style={{ width: 300, background: "#FAFAFA",
+          display: "flex", flexDirection: "column",
+          borderLeft: "1px solid #D5DBDB" }}>
 
-          {/* Count */}
-          <div style={{ padding: "12px 16px", borderBottom: "1px solid #D5DBDB", background: "white" }}>
+          <div style={{ padding: "12px 16px", borderBottom: "1px solid #D5DBDB",
+            background: "white" }}>
             <p style={{ fontSize: 13, fontWeight: 700, margin: 0 }}>
-              Total Annotations: <span style={{ color: "#0073BB" }}>{labels.length}</span>
+              Total Annotations:{" "}
+              <span style={{ color: "#0073BB" }}>{labels.length}</span>
             </p>
           </div>
 
           {/* Tabs */}
-          <div style={{ display: "flex", borderBottom: "1px solid #D5DBDB", background: "white" }}>
+          <div style={{ display: "flex", borderBottom: "1px solid #D5DBDB",
+            background: "white" }}>
             {["annotations", "labelform"].map(tab => (
               <button key={tab} onClick={() => setActiveTab(tab)}
-                style={{ flex: 1, padding: "10px 0", fontSize: 13, fontWeight: activeTab === tab ? 700 : 400,
+                style={{ flex: 1, padding: "10px 0", fontSize: 13,
+                  fontWeight: activeTab === tab ? 700 : 400,
                   background: "none", border: "none", cursor: "pointer",
-                  borderBottom: activeTab === tab ? "2px solid #FF9900" : "2px solid transparent",
+                  borderBottom: activeTab === tab
+                    ? "2px solid #FF9900" : "2px solid transparent",
                   color: activeTab === tab ? "#16191f" : "#687078" }}>
                 {tab === "annotations" ? "Annotations" : "Label Form"}
               </button>
@@ -296,21 +332,24 @@ export default function AnnotationWorkspace() {
             {activeTab === "annotations" ? (
               <div>
                 {labels.length === 0 ? (
-                  <p style={{ fontSize: 12, color: "#687078", textAlign: "center", padding: "24px 0" }}>
+                  <p style={{ fontSize: 12, color: "#687078",
+                    textAlign: "center", padding: "24px 0" }}>
                     Select text in the document to add annotations
                   </p>
                 ) : (
                   labels.map((l, i) => (
-                    <div key={i} style={{ background: "white", border: "1px solid #D5DBDB",
-                      borderRadius: 2, padding: 12, marginBottom: 8, fontSize: 12 }}>
-                      <p style={{ fontWeight: 700, color: "#16191f", marginBottom: 6, wordBreak: "break-word" }}>
+                    <div key={i} style={{ background: "white",
+                      border: "1px solid #D5DBDB", borderRadius: 2,
+                      padding: 12, marginBottom: 8, fontSize: 12 }}>
+                      <p style={{ fontWeight: 700, color: "#16191f",
+                        marginBottom: 6, wordBreak: "break-word", margin: "0 0 6px" }}>
                         "{l.text}"
                       </p>
                       <div style={{ color: "#687078", lineHeight: 1.8 }}>
                         <div>type: <span style={{ color: "#16191f" }}>text</span></div>
-                        <div>parentElement: <span style={{ color: "#16191f" }}>#text</span></div>
-                        <div>label: <span style={{ color: "#0073BB", fontWeight: 700 }}>{l.label}</span></div>
-                        <div>notes: <span style={{ fontStyle: "italic" }}>NA</span></div>
+                        <div>label:{" "}
+                          <span style={{ color: "#FF9900", fontWeight: 700 }}>{l.label}</span>
+                        </div>
                       </div>
                     </div>
                   ))
@@ -318,17 +357,23 @@ export default function AnnotationWorkspace() {
               </div>
             ) : (
               <div>
-                <label style={{ fontSize: 12, fontWeight: 700, display: "block", marginBottom: 4 }}>
+                <label style={{ fontSize: 12, fontWeight: 700,
+                  display: "block", marginBottom: 4 }}>
                   Notes (optional)
                 </label>
-                <textarea className="aws-input"
-                  style={{ height: 100, resize: "vertical", marginBottom: 12 }}
+                <textarea
+                  style={{ width: "100%", border: "1px solid #aab7b8",
+                    borderRadius: 2, padding: "8px 10px", fontSize: 12,
+                    marginBottom: 12, resize: "vertical", height: 100 }}
                   value={notes}
                   onChange={e => setNotes(e.target.value)}
                   placeholder="Add annotation notes..."
                 />
-                <button className="aws-btn-primary" style={{ width: "100%", padding: "8px 0" }}
-                  onClick={handleSubmitTask}>
+                <button onClick={handleSubmitTask}
+                  style={{ width: "100%", background: "#FF9900",
+                    border: "1px solid #EC7211", color: "black",
+                    padding: "8px 0", borderRadius: 2,
+                    fontSize: 13, fontWeight: 700, cursor: "pointer" }}>
                   Submit Task
                 </button>
               </div>
