@@ -1,4 +1,4 @@
-import { useState, useRef } from "react";
+import { useState, useEffect, useRef } from "react";
 import { useNavigate } from "react-router-dom";
 import API from "../../api/client";
 import { AwsTopNav } from "./AdminDashboard";
@@ -53,7 +53,7 @@ export default function DatasetUpload() {
   const navigate = useNavigate();
   const username = localStorage.getItem("username");
 
-  useState(() => { fetchProjects(); }, []);
+ useEffect(() => { fetchProjects(); }, []);
 
   const fetchProjects = async () => {
     try {
