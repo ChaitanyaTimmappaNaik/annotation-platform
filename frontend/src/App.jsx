@@ -11,6 +11,7 @@ import PlaceholderPage from "./pages/admin/PlaceholderPage";
 import BatchManagement from "./pages/admin/BatchManagement";
 import TaskManagement from "./pages/admin/TaskManagement";
 import Analytics from "./pages/admin/Analytics";
+import ReviewQueue from "./pages/admin/ReviewQueue";
 
 function ProtectedRoute({ children, requireAdmin = false }) {
   const token = localStorage.getItem("token");
@@ -58,6 +59,9 @@ export default function App() {
         } />
         <Route path="/admin/analytics" element={
           <ProtectedRoute requireAdmin><Analytics /></ProtectedRoute>
+        } />
+        <Route path="/admin/review" element={
+          <ProtectedRoute requireAdmin><ReviewQueue /></ProtectedRoute>
         } />
 
         <Route path="/admin/settings" element={
