@@ -69,32 +69,18 @@ async def get_project(
 @router.put("/{project_id}")
 async def update_project(
     project_id: int,
-    project_data: ProjectCreate,
+    update_data: dict,
     admin: User = Depends(require_admin),
     db: Session = Depends(get_db)
 ):
-    project = db.query(Project).filter(
-        Project.id == project_id
-    ).first()
+    project = db.query(Project).filter(Project.id == project_id).first()
     if not project:
         raise HTTPException(404, "Project not found")
-    for key, value in project_data.dict().items():
-        setattr(project, key, value)
+    if update_data.get("name"):
+        project.name = update_data["name"]
+    if update_data.get("description") is not None:
+        project.description = update_data["description"]
+    if update_data.get("customer_id") is not None:
+        project.customer_id = update_data["customer_id"]
     db.commit()
-    return {"message": "Project updated"}
-
-# Admin: delete project
-@router.delete("/{project_id}")
-async def delete_project(
-    project_id: int,
-    admin: User = Depends(require_admin),
-    db: Session = Depends(get_db)
-):
-    project = db.query(Project).filter(
-        Project.id == project_id
-    ).first()
-    if not project:
-        raise HTTPException(404, "Project not found")
-    db.delete(project)
-    db.commit()
-    return {"message": "Project deleted"}
+    return {"message": "Project updated successfully"}
