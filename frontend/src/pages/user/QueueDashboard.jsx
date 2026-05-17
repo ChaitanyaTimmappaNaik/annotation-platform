@@ -205,13 +205,6 @@ export default function QueueDashboard() {
                             {task.batch_name}
                           </span>
                         )}
-                        {isMyTask && (
-                          <span style={{ marginLeft: 8, fontSize: 11,
-                            background: "#FEF9E7", color: "#996300",
-                            padding: "1px 6px", borderRadius: 2 }}>
-                            {task.status === "in_progress" ? "▶ Click Resume" : "⏸ Click Resume"}
-                          </span>
-                        )}
                       </td>
                       <td style={{ color: "#687078" }}>{task.customer_id || "—"}</td>
                       <td>{getStatusBadge(task.status)}</td>
