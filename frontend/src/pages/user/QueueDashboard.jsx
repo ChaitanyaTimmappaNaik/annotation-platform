@@ -68,11 +68,11 @@ export default function QueueDashboard() {
   };
 
   const getStatusBadge = (status) => {
-    if (status === "in_progress") return (
-      <span style={{ background: "#E8F4FD", color: "#0073BB",
-        padding: "2px 8px", borderRadius: 2, fontSize: 12, fontWeight: 600 }}>
-        ▶ In Progress
-      </span>
+   if (status === "in_progress") return (
+  <span style={{ background: "#E8F4FD", color: "#0073BB",
+    padding: "2px 8px", borderRadius: 2, fontSize: 12, fontWeight: 600 }}>
+    ⏸ In Progress
+  </span>
     );
     if (status === "paused") return (
       <span style={{ background: "#FEF9E7", color: "#996300",
