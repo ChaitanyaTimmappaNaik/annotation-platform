@@ -49,7 +49,6 @@ export default function TaskManagement() {
   const [editTask, setEditTask] = useState(null);
   const [sortField, setSortField] = useState(null);
   const [sortDir, setSortDir] = useState("asc");
-  const [openSort, setOpenSort] = useState(null);
   const [form, setForm] = useState({
     title: "", project_id: "", customer_id: "",
     data_content: "", instructions: ""
@@ -84,8 +83,7 @@ export default function TaskManagement() {
     }
     try {
       await API.post("/tasks/", {
-        ...form,
-        project_id: parseInt(form.project_id)
+        ...form, project_id: parseInt(form.project_id)
       });
       setSuccess("Task created successfully!");
       setShowForm(false);
@@ -117,11 +115,14 @@ export default function TaskManagement() {
 
   const handleLogout = () => { localStorage.clear(); navigate("/login"); };
 
-  // Sort logic
-  const handleSort = (field, dir) => {
-    setSortField(field);
-    setSortDir(dir);
-    setOpenSort(null);
+  // Double-click to sort — toggle asc/desc on same field
+  const handleDoubleClick = (field) => {
+    if (sortField === field) {
+      setSortDir(prev => prev === "asc" ? "desc" : "asc");
+    } else {
+      setSortField(field);
+      setSortDir("asc");
+    }
   };
 
   const getSortedTasks = () => {
@@ -137,62 +138,19 @@ export default function TaskManagement() {
     });
   };
 
-  const SortTh = ({ field, label, options }) => (
-    <th style={{ padding: "10px 16px", textAlign: "left",
-      fontSize: 12, fontWeight: 700, color: "#16191f",
-      position: "relative", userSelect: "none",
-      cursor: "pointer", whiteSpace: "nowrap" }}
-      onDoubleClick={e => {
-        e.stopPropagation();
-        setOpenSort(openSort === field ? null : field);
-      }}>
-      {label}{" "}
-      <span style={{ fontSize: 10,
-        color: sortField === field ? "#FF9900" : "#aab7b8" }}>
-        {sortField === field ? (sortDir === "asc" ? "▲" : "▼") : "⇅"}
-      </span>
-
-      {openSort === field && (
-        <div onClick={e => e.stopPropagation()}
-          style={{ position: "absolute", top: "100%", left: 0,
-            background: "white", border: "1px solid #D5DBDB",
-            borderRadius: 2, zIndex: 200, minWidth: 180,
-            boxShadow: "0 4px 12px rgba(0,0,0,0.15)" }}>
-          <div style={{ padding: "6px 12px", fontSize: 11,
-            color: "#687078", borderBottom: "1px solid #eaeded",
-            fontWeight: 700, background: "#FAFAFA" }}>
-            Sort by {label}
-          </div>
-          {options.map(opt => (
-            <div key={opt.label}
-              onClick={() => handleSort(opt.field, opt.dir)}
-              style={{ padding: "9px 12px", cursor: "pointer", fontSize: 13,
-                background: sortField === opt.field && sortDir === opt.dir
-                  ? "#F0F8FF" : "white",
-                borderBottom: "1px solid #f5f5f5" }}
-              onMouseEnter={e => e.currentTarget.style.background = "#F0F8FF"}
-              onMouseLeave={e => e.currentTarget.style.background =
-                sortField === opt.field && sortDir === opt.dir ? "#F0F8FF" : "white"}>
-              {opt.label}
-            </div>
-          ))}
-          <div onClick={() => { setSortField(null); setOpenSort(null); }}
-            style={{ padding: "9px 12px", cursor: "pointer", fontSize: 13,
-              color: "#D13212", borderTop: "1px solid #eaeded" }}
-            onMouseEnter={e => e.currentTarget.style.background = "#FDEDEC"}
-            onMouseLeave={e => e.currentTarget.style.background = "white"}>
-            ✕ Clear sort
-          </div>
-        </div>
-      )}
-    </th>
-  );
+  const columns = [
+    { label: "Task Title", field: "title" },
+    { label: "Customer ID", field: "customer_id" },
+    { label: "Project", field: "project_id" },
+    { label: "Status", field: "status" },
+    { label: "Assigned To", field: "assigned_to" },
+    { label: "Created", field: "created_at" },
+  ];
 
   const sortedTasks = getSortedTasks();
 
   return (
-    <div style={{ display: "flex", flexDirection: "column", minHeight: "100vh" }}
-      onClick={() => setOpenSort(null)}>
+    <div style={{ display: "flex", flexDirection: "column", minHeight: "100vh" }}>
       <AwsTopNav username={username} onLogout={handleLogout} />
       <div style={{ display: "flex", flex: 1 }}>
         <AwsSidebar active="Tasks" />
@@ -362,42 +320,35 @@ export default function TaskManagement() {
               </div>
             </div>
 
-            <p style={{ fontSize: 11, color: "#aab7b8", margin: "6px 16px 0" }}>
-              💡 Double-click any column header to sort
+            <p style={{ fontSize: 11, color: "#aab7b8", margin: "6px 16px 4px" }}>
+              💡 Double-click any column header to sort ▲▼
             </p>
 
             <table style={{ width: "100%", borderCollapse: "collapse" }}>
               <thead>
-                <tr style={{ background: "#FAFAFA", borderBottom: "1px solid #D5DBDB" }}
-                  onClick={e => e.stopPropagation()}>
-                  <SortTh field="title" label="Task Title" options={[
-                    { label: "🔤 A → Z", field: "title", dir: "asc" },
-                    { label: "🔤 Z → A", field: "title", dir: "desc" },
-                    { label: "🔢 Task # Low → High", field: "id", dir: "asc" },
-                    { label: "🔢 Task # High → Low", field: "id", dir: "desc" },
-                  ]} />
-                  <SortTh field="customer_id" label="Customer ID" options={[
-                    { label: "🔤 A → Z", field: "customer_id", dir: "asc" },
-                    { label: "🔤 Z → A", field: "customer_id", dir: "desc" },
-                  ]} />
-                  <SortTh field="project_id" label="Project" options={[
-                    { label: "🔤 A → Z", field: "project_id", dir: "asc" },
-                    { label: "🔤 Z → A", field: "project_id", dir: "desc" },
-                  ]} />
-                  <SortTh field="status" label="Status" options={[
-                    { label: "Available first", field: "status", dir: "asc" },
-                    { label: "In Progress first", field: "status", dir: "desc" },
-                  ]} />
-                  <SortTh field="assigned_to" label="Assigned To" options={[
-                    { label: "Assigned first", field: "assigned_to", dir: "desc" },
-                    { label: "Unassigned first", field: "assigned_to", dir: "asc" },
-                  ]} />
-                  <SortTh field="created_at" label="Created" options={[
-                    { label: "🕐 Newest first", field: "created_at", dir: "desc" },
-                    { label: "🕐 Oldest first", field: "created_at", dir: "asc" },
-                  ]} />
+                <tr style={{ background: "#FAFAFA", borderBottom: "1px solid #D5DBDB" }}>
+                  {columns.map(col => (
+                    <th key={col.field}
+                      onDoubleClick={() => handleDoubleClick(col.field)}
+                      title="Double-click to sort"
+                      style={{ padding: "10px 16px", textAlign: "left",
+                        fontSize: 12, fontWeight: 700, color: "#16191f",
+                        cursor: "pointer", userSelect: "none",
+                        whiteSpace: "nowrap" }}>
+                      {col.label}{" "}
+                      {sortField === col.field ? (
+                        <span style={{ color: "#FF9900" }}>
+                          {sortDir === "asc" ? "▲" : "▼"}
+                        </span>
+                      ) : (
+                        <span style={{ color: "#aab7b8", fontSize: 10 }}>⇅</span>
+                      )}
+                    </th>
+                  ))}
                   <th style={{ padding: "10px 16px", textAlign: "left",
-                    fontSize: 12, fontWeight: 700, color: "#16191f" }}>Actions</th>
+                    fontSize: 12, fontWeight: 700, color: "#16191f" }}>
+                    Actions
+                  </th>
                 </tr>
               </thead>
               <tbody>
