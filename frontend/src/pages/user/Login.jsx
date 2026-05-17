@@ -25,6 +25,7 @@ export default function UserLogin() {
       localStorage.setItem("refresh_token", res.data.refresh_token);
       localStorage.setItem("role", res.data.role);
       localStorage.setItem("username", res.data.username);
+      localStorage.setItem("user_id", res.data.user_id);
       if (res.data.role === "admin") {
         navigate("/admin/dashboard");
       } else {
@@ -92,20 +93,25 @@ export default function UserLogin() {
   };
 
   const topNav = (
-    <div style={{ background: "#232F3E", padding: "10px 24px", color: "white", fontSize: 14, fontWeight: 700 }}>
+    <div style={{ background: "#232F3E", padding: "10px 24px",
+      color: "white", fontSize: 14, fontWeight: 700 }}>
       🏷️ AnnotateHub
     </div>
   );
 
   const wrapper = (children) => (
-    <div style={{ minHeight: "100vh", background: "#F2F3F3", display: "flex", flexDirection: "column" }}>
+    <div style={{ minHeight: "100vh", background: "#F2F3F3",
+      display: "flex", flexDirection: "column" }}>
       {topNav}
-      <div style={{ flex: 1, display: "flex", alignItems: "center", justifyContent: "center" }}>
+      <div style={{ flex: 1, display: "flex",
+        alignItems: "center", justifyContent: "center" }}>
         <div style={{ width: 420 }}>
-          <div style={{ background: "white", border: "1px solid #D5DBDB", borderRadius: 2, padding: 40 }}>
+          <div style={{ background: "white", border: "1px solid #D5DBDB",
+            borderRadius: 2, padding: 40 }}>
             {children}
           </div>
-          <p style={{ textAlign: "center", fontSize: 12, color: "#687078", marginTop: 16 }}>
+          <p style={{ textAlign: "center", fontSize: 12,
+            color: "#687078", marginTop: 16 }}>
             © 2026 AnnotateHub. All rights reserved.
           </p>
         </div>
@@ -116,8 +122,12 @@ export default function UserLogin() {
   if (page === "sent") return wrapper(
     <div style={{ textAlign: "center" }}>
       <div style={{ fontSize: 48, marginBottom: 16 }}>📧</div>
-      <h2 style={{ fontSize: 20, fontWeight: 700, marginBottom: 8 }}>Check your email</h2>
-      <p style={{ fontSize: 13, color: "#687078", marginBottom: 24 }}>{success}</p>
+      <h2 style={{ fontSize: 20, fontWeight: 700, marginBottom: 8 }}>
+        Check your email
+      </h2>
+      <p style={{ fontSize: 13, color: "#687078", marginBottom: 24 }}>
+        {success}
+      </p>
       <p style={{ fontSize: 12, color: "#687078", marginBottom: 16 }}>
         Didn't receive the email? Check spam or try again.
       </p>
@@ -125,8 +135,9 @@ export default function UserLogin() {
         onClick={() => { setPage("forgot"); setSuccess(""); }}>
         Try Again
       </button>
-      <button style={{ width: "100%", background: "none", border: "1px solid #0073BB",
-        color: "#0073BB", padding: "8px 0", borderRadius: 2, fontSize: 13, cursor: "pointer" }}
+      <button style={{ width: "100%", background: "none",
+        border: "1px solid #0073BB", color: "#0073BB",
+        padding: "8px 0", borderRadius: 2, fontSize: 13, cursor: "pointer" }}
         onClick={() => { setPage("login"); setError(""); setSuccess(""); }}>
         Back to Sign In
       </button>
@@ -135,29 +146,38 @@ export default function UserLogin() {
 
   if (page === "reset") return wrapper(
     <>
-      <h2 style={{ fontSize: 20, fontWeight: 700, marginBottom: 4 }}>Reset Password</h2>
+      <h2 style={{ fontSize: 20, fontWeight: 700, marginBottom: 4 }}>
+        Reset Password
+      </h2>
       <p style={{ fontSize: 13, color: "#687078", marginBottom: 20 }}>
         Enter your reset token and new password.
       </p>
-      {error && <div style={{ background: "#FDEDEC", border: "1px solid #D13212",
-        borderLeft: "4px solid #D13212", padding: "10px 12px", borderRadius: 2,
-        fontSize: 13, color: "#D13212", marginBottom: 12 }}>{error}</div>}
+      {error && (
+        <div style={{ background: "#FDEDEC", border: "1px solid #D13212",
+          borderLeft: "4px solid #D13212", padding: "10px 12px",
+          borderRadius: 2, fontSize: 13, color: "#D13212", marginBottom: 12 }}>
+          {error}
+        </div>
+      )}
       <form onSubmit={handleResetSubmit}>
         <div style={{ marginBottom: 12 }}>
           <label style={{ fontSize: 12, fontWeight: 700 }}>Reset Token</label>
-          <input style={inputStyle} type="text" placeholder="Paste token from email"
+          <input style={inputStyle} type="text"
+            placeholder="Paste token from email"
             value={resetForm.token}
             onChange={e => setResetForm({...resetForm, token: e.target.value})} />
         </div>
         <div style={{ marginBottom: 12 }}>
           <label style={{ fontSize: 12, fontWeight: 700 }}>New Password</label>
-          <input style={inputStyle} type="password" placeholder="Min 8 characters"
+          <input style={inputStyle} type="password"
+            placeholder="Min 8 characters"
             value={resetForm.new_password}
             onChange={e => setResetForm({...resetForm, new_password: e.target.value})} />
         </div>
         <div style={{ marginBottom: 16 }}>
           <label style={{ fontSize: 12, fontWeight: 700 }}>Confirm Password</label>
-          <input style={inputStyle} type="password" placeholder="Confirm new password"
+          <input style={inputStyle} type="password"
+            placeholder="Confirm new password"
             value={resetForm.confirm_password}
             onChange={e => setResetForm({...resetForm, confirm_password: e.target.value})} />
         </div>
@@ -176,17 +196,24 @@ export default function UserLogin() {
 
   if (page === "forgot") return wrapper(
     <>
-      <h2 style={{ fontSize: 20, fontWeight: 700, marginBottom: 4 }}>Forgot Password</h2>
+      <h2 style={{ fontSize: 20, fontWeight: 700, marginBottom: 4 }}>
+        Forgot Password
+      </h2>
       <p style={{ fontSize: 13, color: "#687078", marginBottom: 20 }}>
         Enter your email to receive reset instructions.
       </p>
-      {error && <div style={{ background: "#FDEDEC", border: "1px solid #D13212",
-        borderLeft: "4px solid #D13212", padding: "10px 12px", borderRadius: 2,
-        fontSize: 13, color: "#D13212", marginBottom: 12 }}>{error}</div>}
+      {error && (
+        <div style={{ background: "#FDEDEC", border: "1px solid #D13212",
+          borderLeft: "4px solid #D13212", padding: "10px 12px",
+          borderRadius: 2, fontSize: 13, color: "#D13212", marginBottom: 12 }}>
+          {error}
+        </div>
+      )}
       <form onSubmit={handleForgotSubmit}>
         <div style={{ marginBottom: 16 }}>
           <label style={{ fontSize: 12, fontWeight: 700 }}>Email Address</label>
-          <input style={inputStyle} type="email" placeholder="Enter your email"
+          <input style={inputStyle} type="email"
+            placeholder="Enter your email"
             value={forgotEmail}
             onChange={e => { setForgotEmail(e.target.value); setError(""); }} />
         </div>
@@ -205,44 +232,50 @@ export default function UserLogin() {
 
   return wrapper(
     <>
-      <h2 style={{ fontSize: 22, fontWeight: 700, marginBottom: 4, color: "#16191f" }}>Sign in</h2>
+      <h2 style={{ fontSize: 22, fontWeight: 700,
+        marginBottom: 4, color: "#16191f" }}>Sign in</h2>
       <p style={{ fontSize: 13, color: "#687078", marginBottom: 24 }}>
         Use your AnnotateHub credentials
       </p>
 
       {error && (
         <div style={{ background: "#FDEDEC", border: "1px solid #D13212",
-          borderLeft: "4px solid #D13212", padding: "10px 12px", borderRadius: 2,
-          fontSize: 13, color: "#D13212", marginBottom: 16 }}>
+          borderLeft: "4px solid #D13212", padding: "10px 12px",
+          borderRadius: 2, fontSize: 13, color: "#D13212", marginBottom: 16 }}>
           {error}
         </div>
       )}
 
       {success && (
         <div style={{ background: "#d5f5e3", border: "1px solid #1D8102",
-          borderLeft: "4px solid #1D8102", padding: "10px 12px", borderRadius: 2,
-          fontSize: 13, color: "#1D8102", marginBottom: 16 }}>
+          borderLeft: "4px solid #1D8102", padding: "10px 12px",
+          borderRadius: 2, fontSize: 13, color: "#1D8102", marginBottom: 16 }}>
           {success}
         </div>
       )}
 
       <form onSubmit={handleLogin}>
         <div style={{ marginBottom: 16 }}>
-          <label style={{ fontSize: 13, fontWeight: 700, display: "block" }}>Username</label>
-          <input style={inputStyle} type="text" placeholder="Enter your username"
+          <label style={{ fontSize: 13, fontWeight: 700, display: "block" }}>
+            Username
+          </label>
+          <input style={inputStyle} type="text"
+            placeholder="Enter your username"
             value={form.username}
             onChange={e => { setForm({...form, username: e.target.value}); setError(""); }}
           />
         </div>
         <div style={{ marginBottom: 8 }}>
-          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+          <div style={{ display: "flex", justifyContent: "space-between",
+            alignItems: "center" }}>
             <label style={{ fontSize: 13, fontWeight: 700 }}>Password</label>
             <span style={{ color: "#0073BB", fontSize: 12, cursor: "pointer" }}
               onClick={() => { setPage("forgot"); setError(""); }}>
               Forgot password?
             </span>
           </div>
-          <input style={inputStyle} type="password" placeholder="Enter your password"
+          <input style={inputStyle} type="password"
+            placeholder="Enter your password"
             value={form.password}
             onChange={e => { setForm({...form, password: e.target.value}); setError(""); }}
           />
@@ -252,7 +285,8 @@ export default function UserLogin() {
         </button>
       </form>
 
-      <div style={{ marginTop: 24, paddingTop: 16, borderTop: "1px solid #eaeded", textAlign: "center" }}>
+      <div style={{ marginTop: 24, paddingTop: 16,
+        borderTop: "1px solid #eaeded", textAlign: "center" }}>
         <p style={{ fontSize: 12, color: "#687078" }}>
           Contact your administrator if you don't have an account.
         </p>
