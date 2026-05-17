@@ -23,9 +23,27 @@ export default function AnnotationWorkspace() {
   }, [taskId]);
 
   const startTimer = () => {
+    // Restore saved time from localStorage if exists
+    const savedTime = localStorage.getItem(`timer_${taskId}`);
+    const savedAt = localStorage.getItem(`timer_${taskId}_savedAt`);
+
+    let initialTime = 29 * 60 + 59;
+
+    if (savedTime && savedAt) {
+      // Calculate how much real time has passed since user left
+      const elapsed = Math.floor((Date.now() - parseInt(savedAt)) / 1000);
+      const remaining = parseInt(savedTime) - elapsed;
+      initialTime = remaining > 0 ? remaining : 0;
+    }
+
+    setTimeLeft(initialTime);
+
     clearInterval(timerRef.current);
     timerRef.current = setInterval(() => {
       setTimeLeft(prev => {
+        // Save current time to localStorage every second
+        localStorage.setItem(`timer_${taskId}`, prev - 1);
+        localStorage.setItem(`timer_${taskId}_savedAt`, Date.now());
         if (prev <= 0) {
           clearInterval(timerRef.current);
           return 0;
@@ -68,6 +86,9 @@ export default function AnnotationWorkspace() {
 
   const handleDeclineTask = async () => {
     if (!confirm("Decline this task? It will be returned to the queue.")) return;
+    // Clear saved timer
+    localStorage.removeItem(`timer_${taskId}`);
+    localStorage.removeItem(`timer_${taskId}_savedAt`);
     try { await API.put(`/tasks/${taskId}/release`); } catch {}
     clearInterval(timerRef.current);
     navigate("/queue");
@@ -75,14 +96,19 @@ export default function AnnotationWorkspace() {
 
   const handleReleaseTask = async () => {
     if (!confirm("Release this task? It will be available for others.")) return;
+    // Clear saved timer
+    localStorage.removeItem(`timer_${taskId}`);
+    localStorage.removeItem(`timer_${taskId}_savedAt`);
     try { await API.put(`/tasks/${taskId}/release`); } catch {}
     clearInterval(timerRef.current);
     navigate("/queue");
   };
 
   const handleStopResume = () => {
-    // Task stays in_progress — just navigate back to queue
-    // Timer continues when user returns
+    // Save current time and timestamp before leaving
+    localStorage.setItem(`timer_${taskId}`, timeLeft);
+    localStorage.setItem(`timer_${taskId}_savedAt`, Date.now());
+    // Task stays in_progress — just navigate back
     clearInterval(timerRef.current);
     navigate("/queue");
   };
@@ -109,6 +135,9 @@ export default function AnnotationWorkspace() {
         notes,
         time_spent: timeSpent
       });
+      // Clear saved timer on submit
+      localStorage.removeItem(`timer_${taskId}`);
+      localStorage.removeItem(`timer_${taskId}_savedAt`);
       setSubmitted(true);
       clearInterval(timerRef.current);
       alert("Task submitted successfully!");
@@ -242,90 +271,98 @@ export default function AnnotationWorkspace() {
 
           {/* Labeled Spans */}
           {labels.length > 0 && (
-            <div style={{ marginTop: 12, border: "1px solid #D5DBDB", borderRadius: 2, background: "white" }}>
-              <div style={{ padding: "8px 16px", background: "#FAFAFA", borderBottom: "1px solid #D5DBDB" }}>
+            <div style={{ marginTop: 12, border: "1px solid #D5DBDB",
+              borderRadius: 2, background: "white" }}>
+              <div style={{ padding: "8px 16px", background: "#FAFAFA",
+                borderBottom: "1px solid #D5DBDB" }}>
                 <strong style={{ fontSize: 13 }}>Labeled Spans ({labels.length})</strong>
               </div>
               {labels.map((l, i) => (
                 <div key={i} style={{ display: "flex", alignItems: "center",
-                  gap: 8, padding: "8px 16px", borderBottom: "1px solid #eaeded", fontSize: 13 }}>
+                  gap: 8, padding: "8px 16px",
+                  borderBottom: "1px solid #eaeded", fontSize: 13 }}>
                   <span style={{ background: "#FF9900", color: "black",
-                    padding: "2px 8px", borderRadius: 2, fontSize: 11, fontWeight: 700 }}>
+                    padding: "2px 8px", borderRadius: 2,
+                    fontSize: 11, fontWeight: 700 }}>
                     {l.label}
                   </span>
                   <span style={{ color: "#16191f", flex: 1 }}>"{l.text}"</span>
                   <button onClick={() => removeLabel(i)}
                     style={{ background: "none", border: "none",
-                      color: "#D13212", cursor: "pointer", fontSize: 16, fontWeight: 700 }}>×</button>
+                      color: "#D13212", cursor: "pointer",
+                      fontSize: 16, fontWeight: 700 }}>×</button>
                 </div>
               ))}
             </div>
           )}
         </div>
 
-        {/* Right - Annotations Panel */}
-        <div style={{ width: 300, background: "#FAFAFA", display: "flex",
-          flexDirection: "column", borderLeft: "1px solid #D5DBDB" }}>
+        {/* Right Panel */}
+        <div style={{ width: 300, background: "#FAFAFA",
+          display: "flex", flexDirection: "column" }}>
 
-          <div style={{ padding: "12px 16px", borderBottom: "1px solid #D5DBDB", background: "white" }}>
+          <div style={{ padding: "12px 16px", borderBottom: "1px solid #D5DBDB",
+            background: "white" }}>
             <p style={{ fontSize: 13, fontWeight: 700, margin: 0 }}>
               Total Annotations: <span style={{ color: "#0073BB" }}>{labels.length}</span>
             </p>
           </div>
 
-          {/* Tabs */}
           <div style={{ display: "flex", borderBottom: "1px solid #D5DBDB", background: "white" }}>
             {["annotations", "labelform"].map(tab => (
               <button key={tab} onClick={() => setActiveTab(tab)}
                 style={{ flex: 1, padding: "10px 0", fontSize: 13,
                   fontWeight: activeTab === tab ? 700 : 400,
                   background: "none", border: "none", cursor: "pointer",
-                  borderBottom: activeTab === tab ? "2px solid #FF9900" : "2px solid transparent",
+                  borderBottom: activeTab === tab
+                    ? "2px solid #FF9900" : "2px solid transparent",
                   color: activeTab === tab ? "#16191f" : "#687078" }}>
                 {tab === "annotations" ? "Annotations" : "Label Form"}
               </button>
             ))}
           </div>
 
-          {/* Tab Content */}
           <div style={{ flex: 1, overflowY: "auto", padding: 12 }}>
             {activeTab === "annotations" ? (
-              <div>
-                {labels.length === 0 ? (
-                  <p style={{ fontSize: 12, color: "#687078", textAlign: "center", padding: "24px 0" }}>
-                    Select text in the document to add annotations
-                  </p>
-                ) : (
-                  labels.map((l, i) => (
-                    <div key={i} style={{ background: "white", border: "1px solid #D5DBDB",
-                      borderRadius: 2, padding: 12, marginBottom: 8, fontSize: 12 }}>
-                      <p style={{ fontWeight: 700, color: "#16191f", margin: "0 0 6px", wordBreak: "break-word" }}>
-                        "{l.text}"
-                      </p>
-                      <div style={{ color: "#687078", lineHeight: 1.8 }}>
-                        <div>type: <span style={{ color: "#16191f" }}>text</span></div>
-                        <div>label: <span style={{ color: "#FF9900", fontWeight: 700 }}>{l.label}</span></div>
-                      </div>
+              labels.length === 0 ? (
+                <p style={{ fontSize: 12, color: "#687078",
+                  textAlign: "center", padding: "24px 0" }}>
+                  Select text to add annotations
+                </p>
+              ) : (
+                labels.map((l, i) => (
+                  <div key={i} style={{ background: "white",
+                    border: "1px solid #D5DBDB", borderRadius: 2,
+                    padding: 12, marginBottom: 8, fontSize: 12 }}>
+                    <p style={{ fontWeight: 700, color: "#16191f",
+                      margin: "0 0 6px", wordBreak: "break-word" }}>
+                      "{l.text}"
+                    </p>
+                    <div style={{ color: "#687078" }}>
+                      label: <span style={{ color: "#FF9900", fontWeight: 700 }}>{l.label}</span>
                     </div>
-                  ))
-                )}
-              </div>
+                  </div>
+                ))
+              )
             ) : (
               <div>
-                <label style={{ fontSize: 12, fontWeight: 700, display: "block", marginBottom: 4 }}>
+                <label style={{ fontSize: 12, fontWeight: 700,
+                  display: "block", marginBottom: 4 }}>
                   Notes (optional)
                 </label>
                 <textarea
-                  style={{ width: "100%", border: "1px solid #aab7b8", borderRadius: 2,
-                    padding: "8px 10px", fontSize: 12, marginBottom: 12,
+                  style={{ width: "100%", border: "1px solid #aab7b8",
+                    borderRadius: 2, padding: "8px 10px",
+                    fontSize: 12, marginBottom: 12,
                     resize: "vertical", height: 100 }}
                   value={notes}
                   onChange={e => setNotes(e.target.value)}
                   placeholder="Add annotation notes..."
                 />
                 <button onClick={handleSubmitTask}
-                  style={{ width: "100%", background: "#FF9900", border: "1px solid #EC7211",
-                    color: "black", padding: "8px 0", borderRadius: 2,
+                  style={{ width: "100%", background: "#FF9900",
+                    border: "1px solid #EC7211", color: "black",
+                    padding: "8px 0", borderRadius: 2,
                     fontSize: 13, fontWeight: 700, cursor: "pointer" }}>
                   Submit Task
                 </button>
