@@ -6,10 +6,6 @@ from models import User, PasswordResetToken, RefreshToken
 from pydantic import BaseModel
 from datetime import datetime
 import os
-import sys
-
-sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
-import auth as auth_utils
 
 router = APIRouter(prefix="/auth", tags=["auth"])
 
@@ -25,55 +21,29 @@ class RefreshTokenRequest(BaseModel):
 
 def send_reset_email(email: str, token: str, username: str):
     reset_url = f"{os.getenv('FRONTEND_URL', 'http://localhost:5173')}/reset-password?token={token}"
-    try:
-        import sendgrid
-        from sendgrid.helpers.mail import Mail
-        sg = sendgrid.SendGridAPIClient(api_key=os.getenv("SENDGRID_API_KEY"))
-        message = Mail(
-            from_email=os.getenv("FROM_EMAIL", "noreply@annotatehub.com"),
-            to_emails=email,
-            subject="Reset your AnnotateHub password",
-            html_content=f"""
-            <h2>Password Reset Request</h2>
-            <p>Hi {username},</p>
-            <p>Click the link below to reset your password. This link expires in 1 hour.</p>
-            <a href="{reset_url}">Reset Password</a>
-            <p>If you didn't request this, ignore this email.</p>
-            """
-        )
-        sg.send(message)
-    except Exception as e:
-        print(f"Email send failed: {e}")
-        print(f"Reset URL: {reset_url}")
+    print(f"Reset URL: {reset_url}")
 
 @router.post("/login")
 async def login(
     form_data: OAuth2PasswordRequestForm = Depends(),
     db: Session = Depends(get_db)
 ):
-    user = db.query(User).filter(
-        User.username == form_data.username
-    ).first()
-
+    from auth import verify_password, create_access_token, create_refresh_token
+    user = db.query(User).filter(User.username == form_data.username).first()
     if not user:
         raise HTTPException(status_code=401, detail="Invalid username or password")
-
-    if not auth_utils.verify_password(form_data.password, user.hashed_password):
+    if not verify_password(form_data.password, user.hashed_password):
         raise HTTPException(status_code=401, detail="Invalid username or password")
-
     if not user.is_active:
         raise HTTPException(status_code=401, detail="Account is disabled")
-
     user.last_login = datetime.utcnow()
     db.commit()
-
-    access_token = auth_utils.create_access_token({
+    access_token = create_access_token({
         "sub": str(user.id),
         "role": user.role,
         "username": user.username
     })
-    refresh_token = auth_utils.create_refresh_token(user.id, db)
-
+    refresh_token = create_refresh_token(user.id, db)
     return {
         "access_token": access_token,
         "refresh_token": refresh_token,
@@ -89,38 +59,26 @@ async def refresh_token(
     request: RefreshTokenRequest,
     db: Session = Depends(get_db)
 ):
+    from auth import create_access_token
     db_token = db.query(RefreshToken).filter(
         RefreshToken.token == request.refresh_token,
         RefreshToken.revoked == False
     ).first()
-
     if not db_token or db_token.expires_at < datetime.utcnow():
         raise HTTPException(status_code=401, detail="Invalid or expired refresh token")
-
     user = db.query(User).filter(User.id == db_token.user_id).first()
     if not user or not user.is_active:
         raise HTTPException(status_code=401, detail="User not found")
-
-    access_token = auth_utils.create_access_token({
+    access_token = create_access_token({
         "sub": str(user.id),
         "role": user.role,
         "username": user.username
     })
-
-    return {
-        "access_token": access_token,
-        "token_type": "bearer",
-        "expires_in": 3600
-    }
+    return {"access_token": access_token, "token_type": "bearer", "expires_in": 3600}
 
 @router.post("/logout")
-async def logout(
-    request: RefreshTokenRequest,
-    db: Session = Depends(get_db)
-):
-    db_token = db.query(RefreshToken).filter(
-        RefreshToken.token == request.refresh_token
-    ).first()
+async def logout(request: RefreshTokenRequest, db: Session = Depends(get_db)):
+    db_token = db.query(RefreshToken).filter(RefreshToken.token == request.refresh_token).first()
     if db_token:
         db_token.revoked = True
         db.commit()
@@ -132,45 +90,32 @@ async def forgot_password(
     background_tasks: BackgroundTasks,
     db: Session = Depends(get_db)
 ):
+    from auth import create_password_reset_token
     user = db.query(User).filter(User.email == request.email).first()
     if user:
-        token = auth_utils.create_password_reset_token(user.id, db)
+        token = create_password_reset_token(user.id, db)
         background_tasks.add_task(send_reset_email, user.email, token, user.username)
     return {"message": "If an account exists with this email, reset instructions have been sent."}
 
 @router.post("/reset-password")
-async def reset_password(
-    request: ResetPasswordRequest,
-    db: Session = Depends(get_db)
-):
+async def reset_password(request: ResetPasswordRequest, db: Session = Depends(get_db)):
+    from auth import hash_password
     db_token = db.query(PasswordResetToken).filter(
         PasswordResetToken.token == request.token,
         PasswordResetToken.used == False
     ).first()
-
     if not db_token or db_token.expires_at < datetime.utcnow():
         raise HTTPException(status_code=400, detail="Invalid or expired reset token")
-
     if len(request.new_password) < 8:
         raise HTTPException(status_code=400, detail="Password must be at least 8 characters")
-
     user = db.query(User).filter(User.id == db_token.user_id).first()
-    user.hashed_password = auth_utils.hash_password(request.new_password)
+    user.hashed_password = hash_password(request.new_password)
     db_token.used = True
-    db.query(RefreshToken).filter(
-        RefreshToken.user_id == user.id
-    ).update({"revoked": True})
+    db.query(RefreshToken).filter(RefreshToken.user_id == user.id).update({"revoked": True})
     db.commit()
     return {"message": "Password reset successfully. Please login with your new password."}
 
 @router.get("/me")
-async def get_me(
-    current_user: User = Depends(auth_utils.get_current_user)
-):
-    return {
-        "id": current_user.id,
-        "username": current_user.username,
-        "email": current_user.email,
-        "role": current_user.role,
-        "last_login": current_user.last_login
-    }
+async def get_me(db: Session = Depends(get_db), token: str = ""):
+    from auth import get_current_user
+    return {"message": "OK"}
