@@ -38,14 +38,18 @@ export default function QueueDashboard() {
     } catch {}
   };
 
-  const fetchBatches = async () => {
-    setLoading(true);
-    try {
-      const res = await API.get("/batches/user-batches");
-      setBatches(res.data);
-    } catch {}
-    setLoading(false);
-  };
+   const fetchBatches = async () => {
+  setLoading(true);
+  try {
+    const res = await API.get("/batches/user-batches");
+    // Filter out completed batches — only show active/available
+    const activeBatches = res.data.filter(
+      batch => !(batch.completed >= batch.total && batch.total > 0)
+    );
+    setBatches(activeBatches);
+  } catch {}
+  setLoading(false);
+ };
 
   const handleStartWorking = async () => {
     if (!selected) return;
