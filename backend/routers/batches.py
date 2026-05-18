@@ -41,13 +41,11 @@ async def create_batch(
     db.add(batch)
     db.flush()
 
-    # Get tasks for this project
     tasks = db.execute(text(
         f"SELECT id FROM tasks WHERE project_id = {batch_data.project_id} "
         f"AND status = 'available' ORDER BY id LIMIT {batch_data.tasks_per_user}"
     )).fetchall()
 
-    # Create batch sequences with dataset_object_id
     for idx, task_row in enumerate(tasks):
         db.execute(text(
             f"INSERT INTO batch_task_sequences "
@@ -59,19 +57,12 @@ async def create_batch(
             f"UPDATE tasks SET dataset_object_id = {idx}, "
             f"batch_sequence = {idx}, "
             f"required_annotators = {batch_data.required_annotators}, "
-            f"iteration = 1 "
-            f"WHERE id = {task_row[0]}"
+            f"iteration = 1 WHERE id = {task_row[0]}"
         ))
 
-    # Create assignments for each user
     for user_id in batch_data.user_ids:
-        assignment = BatchAssignment(
-            batch_id=batch.id,
-            user_id=user_id
-        )
+        assignment = BatchAssignment(batch_id=batch.id, user_id=user_id)
         db.add(assignment)
-
-        # Create task_assignments for consensus
         for slot, task_row in enumerate(tasks):
             db.execute(text(
                 f"INSERT INTO task_assignments "
@@ -82,7 +73,6 @@ async def create_batch(
 
     db.commit()
 
-    # Notify users via WebSocket
     for user_id in batch_data.user_ids:
         await manager.broadcast(
             f"user_{user_id}",
@@ -103,7 +93,6 @@ async def get_user_batches(
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db)
 ):
-    # Get all active batches assigned to this user
     assignments = db.execute(text(f"""
         SELECT DISTINCT
             qb.id, qb.name, qb.project_id, qb.time_limit,
@@ -121,14 +110,12 @@ async def get_user_batches(
     for row in assignments:
         batch_id = row[0]
 
-        # Total tasks assigned to this user in this batch
         total = db.execute(text(f"""
             SELECT COUNT(*) FROM task_assignments
             WHERE batch_id = {batch_id}
             AND user_id = {current_user.id}
         """)).scalar() or 0
 
-        # Completed count
         completed = db.execute(text(f"""
             SELECT COUNT(*) FROM task_assignments
             WHERE batch_id = {batch_id}
@@ -136,7 +123,6 @@ async def get_user_batches(
             AND status = 'completed'
         """)).scalar() or 0
 
-        # In progress count
         in_progress = db.execute(text(f"""
             SELECT COUNT(*) FROM task_assignments
             WHERE batch_id = {batch_id}
@@ -144,7 +130,6 @@ async def get_user_batches(
             AND status = 'in_progress'
         """)).scalar() or 0
 
-        # Task statuses for progress pills
         task_statuses = db.execute(text(f"""
             SELECT t.title, ta.status
             FROM task_assignments ta
@@ -197,8 +182,7 @@ async def get_batches(
 
         completed = db.execute(text(
             f"SELECT COUNT(*) FROM task_assignments "
-            f"WHERE batch_id = {batch.id} "
-            f"AND status = 'completed'"
+            f"WHERE batch_id = {batch.id} AND status = 'completed'"
         )).scalar()
 
         result.append({
@@ -228,15 +212,14 @@ async def get_next_task(
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db)
 ):
-    # First check if there is an in_progress task to resume
+    # Check for in_progress task first (resume)
     in_progress = db.execute(text(f"""
         SELECT ta.task_id, bts.sequence_order, bts.dataset_object_id,
-               t.title, t.data_content, t.customer_id, t.instructions,
-               t.project_id, ta.status
+               t.title, t.data_content, t.customer_id,
+               t.instructions, t.project_id, ta.status
         FROM task_assignments ta
         JOIN batch_task_sequences bts
-            ON bts.task_id = ta.task_id
-            AND bts.batch_id = {batch_id}
+            ON bts.task_id = ta.task_id AND bts.batch_id = {batch_id}
         JOIN tasks t ON t.id = ta.task_id
         WHERE ta.user_id = {current_user.id}
         AND ta.batch_id = {batch_id}
@@ -263,12 +246,11 @@ async def get_next_task(
     # Get next pending task
     next_task = db.execute(text(f"""
         SELECT ta.task_id, bts.sequence_order, bts.dataset_object_id,
-               t.title, t.data_content, t.customer_id, t.instructions,
-               t.project_id, ta.status
+               t.title, t.data_content, t.customer_id,
+               t.instructions, t.project_id, ta.status
         FROM task_assignments ta
         JOIN batch_task_sequences bts
-            ON bts.task_id = ta.task_id
-            AND bts.batch_id = {batch_id}
+            ON bts.task_id = ta.task_id AND bts.batch_id = {batch_id}
         JOIN tasks t ON t.id = ta.task_id
         WHERE ta.user_id = {current_user.id}
         AND ta.batch_id = {batch_id}
@@ -346,7 +328,6 @@ async def update_batch(
     batch.updated_at = datetime.utcnow()
     db.commit()
 
-    # Notify assigned users
     assignments = db.query(BatchAssignment).filter(
         BatchAssignment.batch_id == batch_id
     ).all()
@@ -361,8 +342,49 @@ async def update_batch(
                 "message": "Batch settings updated by admin"
             }
         )
-
     return {"message": "Batch updated"}
+
+@router.delete("/{batch_id}")
+async def delete_batch(
+    batch_id: int,
+    admin: User = Depends(require_admin),
+    db: Session = Depends(get_db)
+):
+    batch = db.query(QueueBatch).filter(
+        QueueBatch.id == batch_id
+    ).first()
+    if not batch:
+        raise HTTPException(404, "Batch not found")
+
+    # Delete consensus records first
+    task_ids = db.execute(text(
+        f"SELECT task_id FROM batch_task_sequences "
+        f"WHERE batch_id = {batch_id}"
+    )).fetchall()
+
+    if task_ids:
+        ids = ",".join(str(t[0]) for t in task_ids)
+        db.execute(text(
+            f"DELETE FROM annotation_consensus "
+            f"WHERE task_id IN ({ids})"
+        ))
+
+    # Delete in correct order
+    db.execute(text(
+        f"DELETE FROM task_assignments WHERE batch_id = {batch_id}"
+    ))
+    db.execute(text(
+        f"DELETE FROM batch_task_sequences WHERE batch_id = {batch_id}"
+    ))
+    db.execute(text(
+        f"DELETE FROM batch_assignments WHERE batch_id = {batch_id}"
+    ))
+    db.query(QueueBatch).filter(
+        QueueBatch.id == batch_id
+    ).delete()
+    db.commit()
+
+    return {"message": "Batch deleted successfully"}
 
 @router.websocket("/ws/{user_id}")
 async def websocket_endpoint(
