@@ -62,7 +62,6 @@ export default function AnnotationWorkspace() {
   const username = localStorage.getItem("username");
   const userId = localStorage.getItem("user_id");
 
-  // Reset everything when taskId changes
   useEffect(() => {
     setAnnotation(INITIAL_STATE);
     setActiveTab("annotation");
@@ -235,7 +234,7 @@ export default function AnnotationWorkspace() {
   };
 
   const handleDecline = async () => {
-    if (!confirm("Decline this task? It will be returned to the queue.")) return;
+    if (!confirm("Decline this task?")) return;
     localStorage.removeItem(`timer_${taskId}`);
     localStorage.removeItem(`timer_${taskId}_savedAt`);
     clearInterval(timerRef.current);
@@ -244,7 +243,7 @@ export default function AnnotationWorkspace() {
   };
 
   const handleRelease = async () => {
-    if (!confirm("Release this task? It will be available for others.")) return;
+    if (!confirm("Release this task?")) return;
     localStorage.removeItem(`timer_${taskId}`);
     localStorage.removeItem(`timer_${taskId}_savedAt`);
     clearInterval(timerRef.current);
@@ -274,7 +273,9 @@ export default function AnnotationWorkspace() {
           gap: 16, fontSize: 12, flexWrap: "wrap" }}>
           <span>Hello, <strong>{username}</strong></span>
           <span style={{ color: "#aab7b8" }}>|</span>
-          <span>Customer ID: <strong>{task.customer_id || "977099032732"}</strong></span>
+          <span>Customer ID:{" "}
+            <strong>{task.customer_id || "977099032732"}</strong>
+          </span>
           <span style={{ color: "#aab7b8" }}>|</span>
           <span>Task description: <strong>{task.title}</strong></span>
           <span style={{ color: "#aab7b8" }}>|</span>
@@ -301,7 +302,7 @@ export default function AnnotationWorkspace() {
         </div>
       </div>
 
-      {/* ── Task ID + Instructions Bar ── */}
+      {/* ── Instructions + Task ID Bar ── */}
       <div style={{ background: "#F2F3F3",
         borderBottom: "1px solid #D5DBDB",
         padding: "6px 20px", display: "flex",
@@ -320,11 +321,11 @@ export default function AnnotationWorkspace() {
           </span>
         )}
 
-        {/* Task ID badges — right side */}
+        {/* Right side — Task ID and Batch only */}
         <div style={{ marginLeft: "auto", display: "flex",
           alignItems: "center", gap: 8 }}>
 
-          {/* Task ID — most important for consensus tracking */}
+          {/* Task ID for consensus tracking */}
           <span style={{ fontSize: 12, fontWeight: 700,
             background: "#FEF9E7",
             border: "1px solid #FF9900",
@@ -335,14 +336,6 @@ export default function AnnotationWorkspace() {
             </strong>
           </span>
 
-          {/* Dataset Object ID */}
-          <span style={{ fontSize: 11, color: "#687078",
-            background: "#E8F4FD",
-            border: "1px solid #0073BB30",
-            padding: "3px 8px", borderRadius: 2 }}>
-            datasetObjectId: <strong>{datasetObjectId}</strong>
-          </span>
-
           {/* Batch name */}
           {batchId && task.title && (
             <span style={{ fontSize: 11, color: "#6A1B9A",
@@ -350,16 +343,6 @@ export default function AnnotationWorkspace() {
               border: "1px solid #6A1B9A30",
               padding: "3px 8px", borderRadius: 2 }}>
               Batch: <strong>{task.title}</strong>
-            </span>
-          )}
-
-          {/* Progress */}
-          {batchId && progress && (
-            <span style={{ fontSize: 11, color: "#1D8102",
-              background: "#d5f5e3",
-              border: "1px solid #1D810230",
-              padding: "3px 8px", borderRadius: 2 }}>
-              {progress.completed + 1}/{progress.total}
             </span>
           )}
         </div>
@@ -408,15 +391,13 @@ export default function AnnotationWorkspace() {
                   borderBottom: activeTab === tab
                     ? "2px solid #FF9900"
                     : "2px solid transparent",
-                  color: activeTab === tab ? "#16191f" : "#687078",
-                  textTransform: "capitalize" }}>
+                  color: activeTab === tab ? "#16191f" : "#687078" }}>
                 {tab === "annotation" ? "Annotation Panel" : "Reference"}
               </button>
             ))}
           </div>
 
           <div style={{ flex: 1, padding: 16, overflowY: "auto" }}>
-
             {activeTab === "reference" ? (
               <div style={{ fontSize: 12 }}>
                 <h3 style={{ fontSize: 14, fontWeight: 700 }}>
@@ -424,13 +405,11 @@ export default function AnnotationWorkspace() {
                 </h3>
                 {HARM_CATEGORIES.map(cat => (
                   <div key={cat.key} style={{ marginBottom: 6,
-                    padding: 8, background: "#F8F8F8",
-                    borderRadius: 2 }}>
+                    padding: 8, background: "#F8F8F8", borderRadius: 2 }}>
                     <strong>{cat.label}</strong>
                   </div>
                 ))}
-                <h3 style={{ fontSize: 14, fontWeight: 700,
-                  marginTop: 16 }}>
+                <h3 style={{ fontSize: 14, fontWeight: 700, marginTop: 16 }}>
                   Intensity Scale
                 </h3>
                 {[
@@ -444,8 +423,7 @@ export default function AnnotationWorkspace() {
                     <strong>{item.level}:</strong> {item.desc}
                   </div>
                 ))}
-                <h3 style={{ fontSize: 14, fontWeight: 700,
-                  marginTop: 16 }}>
+                <h3 style={{ fontSize: 14, fontWeight: 700, marginTop: 16 }}>
                   Severity Scale
                 </h3>
                 {[
@@ -456,8 +434,7 @@ export default function AnnotationWorkspace() {
                   "4 — Severely harmful",
                   "5 — Extremely dangerous",
                 ].map(s => (
-                  <div key={s} style={{ fontSize: 12,
-                    padding: "4px 0",
+                  <div key={s} style={{ fontSize: 12, padding: "4px 0",
                     borderBottom: "1px solid #f5f5f5" }}>
                     {s}
                   </div>
@@ -465,7 +442,6 @@ export default function AnnotationWorkspace() {
               </div>
             ) : (
               <div>
-
                 {/* Step 1 */}
                 <div style={{ marginBottom: 16, padding: 12,
                   background: "#F8F8F8", borderRadius: 4,
@@ -480,9 +456,8 @@ export default function AnnotationWorkspace() {
                       { label: "No harm", value: false }
                     ].map(opt => (
                       <label key={String(opt.value)}
-                        style={{ display: "flex",
-                          alignItems: "center", gap: 6,
-                          cursor: "pointer", fontSize: 13 }}>
+                        style={{ display: "flex", alignItems: "center",
+                          gap: 6, cursor: "pointer", fontSize: 13 }}>
                         <input type="radio" name="hasHarm"
                           checked={annotation.hasHarm === opt.value}
                           onChange={() => setField("hasHarm", opt.value)} />
@@ -512,9 +487,9 @@ export default function AnnotationWorkspace() {
                         Step 2: Intent Evaluation *
                       </label>
                       <select style={{ width: "100%",
-                        border: "1px solid #aab7b8",
-                        borderRadius: 2, padding: "6px 8px",
-                        fontSize: 13, marginBottom: 8 }}
+                        border: "1px solid #aab7b8", borderRadius: 2,
+                        padding: "6px 8px", fontSize: 13,
+                        marginBottom: 8 }}
                         value={annotation.intent}
                         onChange={e => setField("intent", e.target.value)}>
                         <option value="">Select intent...</option>
@@ -524,23 +499,21 @@ export default function AnnotationWorkspace() {
                       </select>
                       {annotation.intent && (
                         <>
-                          <label style={{ fontSize: 12,
-                            fontWeight: 700, display: "block",
-                            marginBottom: 4 }}>
+                          <label style={{ fontSize: 12, fontWeight: 700,
+                            display: "block", marginBottom: 4 }}>
                             Provide rationale *
                           </label>
                           <textarea style={{ width: "100%",
-                            border: "1px solid #aab7b8",
-                            borderRadius: 2, padding: "6px 8px",
-                            fontSize: 12, resize: "vertical",
-                            height: 60 }}
+                            border: "1px solid #aab7b8", borderRadius: 2,
+                            padding: "6px 8px", fontSize: 12,
+                            resize: "vertical", height: 60 }}
                             placeholder="Explain why you chose this intent..."
                             value={annotation.intentRationale}
                             onChange={e =>
                               setField("intentRationale", e.target.value)} />
-                          <label style={{ fontSize: 12,
-                            fontWeight: 700, display: "block",
-                            marginBottom: 4, marginTop: 8 }}>
+                          <label style={{ fontSize: 12, fontWeight: 700,
+                            display: "block", marginBottom: 4,
+                            marginTop: 8 }}>
                             Intent Confidence Level *
                           </label>
                           {CONFIDENCE_OPTIONS.map(opt => (
@@ -549,8 +522,7 @@ export default function AnnotationWorkspace() {
                                 alignItems: "center", gap: 6,
                                 cursor: "pointer", fontSize: 12,
                                 marginBottom: 4 }}>
-                              <input type="radio"
-                                name="intentConfidence"
+                              <input type="radio" name="intentConfidence"
                                 checked={
                                   annotation.intentConfidenceLevel === opt
                                 }
@@ -571,14 +543,14 @@ export default function AnnotationWorkspace() {
                         display: "block", marginBottom: 8 }}>
                         Step 3: Select Harm Categories *
                       </label>
-                      <div style={{ display: "flex",
-                        flexWrap: "wrap", gap: 6, marginBottom: 12 }}>
+                      <div style={{ display: "flex", flexWrap: "wrap",
+                        gap: 6, marginBottom: 12 }}>
                         {HARM_CATEGORIES.map(cat => (
                           <button key={cat.key}
                             onClick={() => toggleCategory(cat.key)}
-                            style={{ padding: "4px 10px",
-                              borderRadius: 2, fontSize: 12,
-                              cursor: "pointer", fontWeight: 600,
+                            style={{ padding: "4px 10px", borderRadius: 2,
+                              fontSize: 12, cursor: "pointer",
+                              fontWeight: 600,
                               background: annotation.selectedCategories
                                 .includes(cat.key) ? "#FF9900" : "white",
                               border: annotation.selectedCategories
@@ -600,22 +572,19 @@ export default function AnnotationWorkspace() {
                         return (
                           <div key={catKey} style={{ marginBottom: 12,
                             padding: 10, background: "white",
-                            borderRadius: 2,
-                            border: "1px solid #FF9900" }}>
-                            <div style={{ fontWeight: 700,
-                              fontSize: 13, color: "#FF9900",
-                              marginBottom: 8 }}>
+                            borderRadius: 2, border: "1px solid #FF9900" }}>
+                            <div style={{ fontWeight: 700, fontSize: 13,
+                              color: "#FF9900", marginBottom: 8 }}>
                               {cat?.label}
                             </div>
-                            <label style={{ fontSize: 11,
-                              fontWeight: 700, display: "block",
-                              marginBottom: 4 }}>
+                            <label style={{ fontSize: 11, fontWeight: 700,
+                              display: "block", marginBottom: 4 }}>
                               Intensity *
                             </label>
                             <select style={{ width: "100%",
-                              border: "1px solid #aab7b8",
-                              borderRadius: 2, padding: "4px 6px",
-                              fontSize: 12, marginBottom: 8 }}
+                              border: "1px solid #aab7b8", borderRadius: 2,
+                              padding: "4px 6px", fontSize: 12,
+                              marginBottom: 8 }}
                               value={data.intensity || "None"}
                               onChange={e => updateCategoryData(
                                 catKey, "intensity", e.target.value)}>
@@ -623,14 +592,12 @@ export default function AnnotationWorkspace() {
                                 <option key={o} value={o}>{o}</option>
                               ))}
                             </select>
-                            <label style={{ fontSize: 11,
-                              fontWeight: 700, display: "block",
-                              marginBottom: 4 }}>
+                            <label style={{ fontSize: 11, fontWeight: 700,
+                              display: "block", marginBottom: 4 }}>
                               Severity (0-5) *
                             </label>
-                            <div style={{ display: "flex",
-                              gap: 8, marginBottom: 8,
-                              flexWrap: "wrap" }}>
+                            <div style={{ display: "flex", gap: 8,
+                              marginBottom: 8, flexWrap: "wrap" }}>
                               {SEVERITY_OPTIONS.map(s => (
                                 <label key={s}
                                   style={{ display: "flex",
@@ -645,9 +612,8 @@ export default function AnnotationWorkspace() {
                                 </label>
                               ))}
                             </div>
-                            <label style={{ fontSize: 11,
-                              fontWeight: 700, display: "block",
-                              marginBottom: 4 }}>
+                            <label style={{ fontSize: 11, fontWeight: 700,
+                              display: "block", marginBottom: 4 }}>
                               Confidence Level *
                             </label>
                             {CONFIDENCE_OPTIONS.map(opt => (
