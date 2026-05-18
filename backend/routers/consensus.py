@@ -23,48 +23,94 @@ class ConsensusAnnotationSubmit(BaseModel):
 def now_utc():
     return datetime.now(timezone.utc).isoformat().replace("+00:00", "Z")
 
+def clean_annotation(ann: dict) -> dict:
+    """Strip internal system fields — only keep annotation fields."""
+    ignore = {
+        "task_id", "batch_id", "dataset_object_id",
+        "annotator_id", "submitted_at", "overall_comments",
+        "intent_rationale"
+    }
+    return {k: v for k, v in ann.items() if k not in ignore}
+
 def calculate_agreement(ann1: dict, ann2: dict, ann3: dict) -> float:
+    """Calculate agreement score between 3 annotators.
+    Only compares meaningful annotation fields.
+    Returns 0.0 - 1.0 where 1.0 = perfect agreement.
+    """
     try:
+        a1 = clean_annotation(ann1)
+        a2 = clean_annotation(ann2)
+        a3 = clean_annotation(ann3)
+
         scores = []
-        # Check has_harm agreement
-        v1 = str(ann1.get("has_harm", ""))
-        v2 = str(ann2.get("has_harm", ""))
-        v3 = str(ann3.get("has_harm", ""))
-        agreements = sum([v1 == v2, v2 == v3, v1 == v3])
-        scores.append(agreements / 3.0)
 
-        # Check intent agreement
-        v1 = str(ann1.get("intent", ""))
-        v2 = str(ann2.get("intent", ""))
-        v3 = str(ann3.get("intent", ""))
-        agreements = sum([v1 == v2, v2 == v3, v1 == v3])
-        scores.append(agreements / 3.0)
+        # has_harm — weighted x2 (primary gate)
+        v1 = str(a1.get("has_harm", ""))
+        v2 = str(a2.get("has_harm", ""))
+        v3 = str(a3.get("has_harm", ""))
+        agree = sum([v1 == v2, v2 == v3, v1 == v3])
+        scores.append(agree / 3.0)
+        scores.append(agree / 3.0)
 
-        # Check harm categories agreement
-        cats1 = ann1.get("harm_categories", {}) or {}
-        cats2 = ann2.get("harm_categories", {}) or {}
-        cats3 = ann3.get("harm_categories", {}) or {}
+        # intent
+        v1 = str(a1.get("intent", ""))
+        v2 = str(a2.get("intent", ""))
+        v3 = str(a3.get("intent", ""))
+        agree = sum([v1 == v2, v2 == v3, v1 == v3])
+        scores.append(agree / 3.0)
+
+        # intent_confidence_level
+        v1 = str(a1.get("intent_confidence_level", ""))
+        v2 = str(a2.get("intent_confidence_level", ""))
+        v3 = str(a3.get("intent_confidence_level", ""))
+        agree = sum([v1 == v2, v2 == v3, v1 == v3])
+        scores.append(agree / 3.0)
+
+        # harm_categories — intensity + severity per category
+        cats1 = a1.get("harm_categories", {}) or {}
+        cats2 = a2.get("harm_categories", {}) or {}
+        cats3 = a3.get("harm_categories", {}) or {}
         all_cats = set(
             list(cats1.keys()) +
             list(cats2.keys()) +
             list(cats3.keys())
         )
+
         for cat in all_cats:
-            i1 = str((cats1.get(cat) or {}).get("intensity", ""))
-            i2 = str((cats2.get(cat) or {}).get("intensity", ""))
-            i3 = str((cats3.get(cat) or {}).get("intensity", ""))
-            agreements = sum([i1 == i2, i2 == i3, i1 == i3])
-            scores.append(agreements / 3.0)
+            c1 = cats1.get(cat, {}) or {}
+            c2 = cats2.get(cat, {}) or {}
+            c3 = cats3.get(cat, {}) or {}
+
+            # intensity agreement
+            i1 = str(c1.get("intensity", ""))
+            i2 = str(c2.get("intensity", ""))
+            i3 = str(c3.get("intensity", ""))
+            agree = sum([i1 == i2, i2 == i3, i1 == i3])
+            scores.append(agree / 3.0)
+
+            # severity agreement
+            s1 = str(c1.get("severity", ""))
+            s2 = str(c2.get("severity", ""))
+            s3 = str(c3.get("severity", ""))
+            agree = sum([s1 == s2, s2 == s3, s1 == s3])
+            scores.append(agree / 3.0)
 
         return round(sum(scores) / len(scores) if scores else 0, 4)
-    except:
+    except Exception as e:
         return 0.0
 
 def determine_consensus(ann1: dict, ann2: dict, ann3: dict) -> dict:
+    """Determine consensus by majority vote (2 of 3).
+    Only includes clean annotation fields.
+    """
+    a1 = clean_annotation(ann1)
+    a2 = clean_annotation(ann2)
+    a3 = clean_annotation(ann3)
+
     consensus = {}
 
     # has_harm majority vote
-    vals = [ann1.get("has_harm"), ann2.get("has_harm"), ann3.get("has_harm")]
+    vals = [a1.get("has_harm"), a2.get("has_harm"), a3.get("has_harm")]
     for v in vals:
         if vals.count(v) >= 2:
             consensus["has_harm"] = v
@@ -73,7 +119,7 @@ def determine_consensus(ann1: dict, ann2: dict, ann3: dict) -> dict:
         consensus["has_harm"] = None
 
     # intent majority vote
-    vals = [ann1.get("intent"), ann2.get("intent"), ann3.get("intent")]
+    vals = [a1.get("intent"), a2.get("intent"), a3.get("intent")]
     for v in vals:
         if vals.count(v) >= 2:
             consensus["intent"] = v
@@ -81,10 +127,23 @@ def determine_consensus(ann1: dict, ann2: dict, ann3: dict) -> dict:
     else:
         consensus["intent"] = None
 
-    # harm_categories majority vote per category
-    cats1 = ann1.get("harm_categories", {}) or {}
-    cats2 = ann2.get("harm_categories", {}) or {}
-    cats3 = ann3.get("harm_categories", {}) or {}
+    # intent_confidence_level majority vote
+    vals = [
+        a1.get("intent_confidence_level"),
+        a2.get("intent_confidence_level"),
+        a3.get("intent_confidence_level")
+    ]
+    for v in vals:
+        if vals.count(v) >= 2:
+            consensus["intent_confidence_level"] = v
+            break
+    else:
+        consensus["intent_confidence_level"] = None
+
+    # harm_categories majority vote per category per field
+    cats1 = a1.get("harm_categories", {}) or {}
+    cats2 = a2.get("harm_categories", {}) or {}
+    cats3 = a3.get("harm_categories", {}) or {}
     all_cats = set(
         list(cats1.keys()) +
         list(cats2.keys()) +
@@ -96,17 +155,16 @@ def determine_consensus(ann1: dict, ann2: dict, ann3: dict) -> dict:
         c1 = cats1.get(cat, {}) or {}
         c2 = cats2.get(cat, {}) or {}
         c3 = cats3.get(cat, {}) or {}
-
-        cat_consensus = {}
+        cat_result = {}
         for field in ["intensity", "severity", "confidence"]:
             fvals = [c1.get(field), c2.get(field), c3.get(field)]
             for v in fvals:
                 if fvals.count(v) >= 2:
-                    cat_consensus[field] = v
+                    cat_result[field] = v
                     break
             else:
-                cat_consensus[field] = None
-        consensus_cats[cat] = cat_consensus
+                cat_result[field] = None
+        consensus_cats[cat] = cat_result
 
     consensus["harm_categories"] = consensus_cats
     return consensus
@@ -117,7 +175,7 @@ async def submit_consensus_annotation(
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db)
 ):
-    # Mark assignment as completed
+    # Mark this user's assignment as completed
     db.execute(text(f"""
         UPDATE task_assignments
         SET status = 'completed', completed_at = NOW()
@@ -126,19 +184,34 @@ async def submit_consensus_annotation(
         AND batch_id = {data.batch_id}
     """))
 
-    # Save annotation
-    label_json = json.dumps(data.label_data).replace("'", "''")
+    # Clean label_data before saving
+    clean_data = clean_annotation(data.label_data)
+    # Keep only annotation-relevant fields
+    save_data = {
+        "has_harm": data.label_data.get("has_harm"),
+        "intent": data.label_data.get("intent"),
+        "intent_rationale": data.label_data.get("intent_rationale", ""),
+        "intent_confidence_level": data.label_data.get(
+            "intent_confidence_level", ""
+        ),
+        "harm_categories": data.label_data.get("harm_categories", {}),
+        "overall_comments": data.label_data.get("overall_comments", "")
+    }
+
+    label_json = json.dumps(save_data).replace("'", "''")
     notes_val = (data.notes or "").replace("'", "''")
 
+    # Save or update annotation
     existing = db.execute(text(
-        f"SELECT id FROM annotations WHERE task_id = {data.task_id} "
+        f"SELECT id FROM annotations "
+        f"WHERE task_id = {data.task_id} "
         f"AND annotator_id = {current_user.id}"
     )).fetchone()
 
     if existing:
         db.execute(text(f"""
-            UPDATE annotations
-            SET label_data = '{label_json}'::jsonb,
+            UPDATE annotations SET
+                label_data = '{label_json}'::jsonb,
                 notes = '{notes_val}',
                 time_spent = {data.time_spent or 0},
                 submitted_at = NOW()
@@ -148,27 +221,32 @@ async def submit_consensus_annotation(
     else:
         db.execute(text(f"""
             INSERT INTO annotations
-            (task_id, annotator_id, label_data, notes, time_spent, submitted_at)
-            VALUES ({data.task_id}, {current_user.id},
-                    '{label_json}'::jsonb,
-                    '{notes_val}',
-                    {data.time_spent or 0}, NOW())
+            (task_id, annotator_id, label_data,
+             notes, time_spent, submitted_at)
+            VALUES (
+                {data.task_id}, {current_user.id},
+                '{label_json}'::jsonb,
+                '{notes_val}',
+                {data.time_spent or 0}, NOW()
+            )
         """))
 
-    # Check annotation count
+    # Count annotations submitted so far
     annotation_count = db.execute(text(
-        f"SELECT COUNT(*) FROM annotations WHERE task_id = {data.task_id}"
+        f"SELECT COUNT(*) FROM annotations "
+        f"WHERE task_id = {data.task_id}"
     )).scalar()
 
     required = db.execute(text(
-        f"SELECT required_annotators FROM tasks WHERE id = {data.task_id}"
+        f"SELECT required_annotators FROM tasks "
+        f"WHERE id = {data.task_id}"
     )).scalar() or 3
 
     if annotation_count >= required:
-        # Fetch all annotations with user info
+        # All annotators done — run consensus
         annotations = db.execute(text(f"""
-            SELECT a.annotator_id, a.label_data, u.username,
-                   a.submitted_at, a.time_spent
+            SELECT a.annotator_id, a.label_data,
+                   u.username, a.submitted_at, a.time_spent
             FROM annotations a
             JOIN users u ON u.id = a.annotator_id
             WHERE a.task_id = {data.task_id}
@@ -200,16 +278,15 @@ async def submit_consensus_annotation(
             while len(ann_ids) < 3:
                 ann_ids.append(None)
 
+            id1 = ann_ids[0]
+            id2 = ann_ids[1] if ann_ids[1] else "NULL"
+            id3 = ann_ids[2] if ann_ids[2] else "NULL"
             status = "agreed" if agreement >= 0.7 else "needs_review"
 
-            # Save/update consensus
             existing_c = db.execute(text(
                 f"SELECT id FROM annotation_consensus "
                 f"WHERE task_id = {data.task_id}"
             )).fetchone()
-
-            id2 = ann_ids[1] if ann_ids[1] else "NULL"
-            id3 = ann_ids[2] if ann_ids[2] else "NULL"
 
             if existing_c:
                 db.execute(text(f"""
@@ -217,7 +294,7 @@ async def submit_consensus_annotation(
                         annotation_1 = '{ann1_json}'::jsonb,
                         annotation_2 = '{ann2_json}'::jsonb,
                         annotation_3 = '{ann3_json}'::jsonb,
-                        annotator_1_id = {ann_ids[0]},
+                        annotator_1_id = {id1},
                         annotator_2_id = {id2},
                         annotator_3_id = {id3},
                         consensus_result = '{consensus_json}'::jsonb,
@@ -235,7 +312,7 @@ async def submit_consensus_annotation(
                      consensus_result, agreement_score, status)
                     VALUES (
                         {data.task_id}, {data.dataset_object_id}, 1,
-                        {ann_ids[0]}, {id2}, {id3},
+                        {id1}, {id2}, {id3},
                         '{ann1_json}'::jsonb,
                         '{ann2_json}'::jsonb,
                         '{ann3_json}'::jsonb,
@@ -259,13 +336,15 @@ async def submit_consensus_annotation(
         task_id=data.task_id,
         user_id=current_user.id,
         action="submitted",
-        detail=f"Annotation submitted by {current_user.username} "
-               f"({annotation_count}/{required} annotators)"
+        detail=(
+            f"Annotation submitted by {current_user.username} "
+            f"({annotation_count}/{required} annotators)"
+        )
     )
     db.add(log)
     db.commit()
 
-    # Get next pending task
+    # Get next pending task for this user in this batch
     next_task = db.execute(text(f"""
         SELECT ta.task_id, bts.sequence_order, t.title
         FROM task_assignments ta
@@ -284,6 +363,7 @@ async def submit_consensus_annotation(
         "message": "Annotation submitted successfully",
         "annotation_count": annotation_count,
         "required": required,
+        "agreement_score": None,
         "next_task_id": next_task[0] if next_task else None,
         "batch_complete": next_task is None
     }
@@ -347,10 +427,9 @@ async def export_consensus_json_v2(
     admin: User = Depends(require_admin),
     db: Session = Depends(get_db)
 ):
-    # Get batch info
     batch = db.execute(text(f"""
-        SELECT qb.id, qb.name, qb.project_id, qb.created_at,
-               p.name as project_name
+        SELECT qb.id, qb.name, qb.project_id,
+               qb.created_at, p.name as project_name
         FROM queue_batches qb
         JOIN projects p ON p.id = qb.project_id
         WHERE qb.id = {batch_id}
@@ -359,7 +438,6 @@ async def export_consensus_json_v2(
     if not batch:
         raise HTTPException(404, "Batch not found")
 
-    # Get all results
     results = await get_consensus_results(batch_id, admin, db)
 
     total = len(results)
@@ -371,16 +449,12 @@ async def export_consensus_json_v2(
         1 for r in results
         if not r["status"] or r["status"] == "pending"
     )
-
-    # Get customer_id from first task
     customer_id = results[0]["customer_id"] if results else "977099032732"
 
-    # Build v2.0 export
     tasks_export = []
     for r in results:
-        # Build annotations array
         annotations = []
-        for i, (ann_data, ann_id, ann_username) in enumerate([
+        for i, (ann_data, ann_id, ann_user) in enumerate([
             (r["annotation_1"], r["annotator_1_id"], r["annotator_1"]),
             (r["annotation_2"], r["annotator_2_id"], r["annotator_2"]),
             (r["annotation_3"], r["annotator_3_id"], r["annotator_3"]),
@@ -389,24 +463,29 @@ async def export_consensus_json_v2(
                 annotations.append({
                     "workerId": f"worker-{str(i).zfill(3)}",
                     "annotatorId": ann_id,
-                    "annotatorUsername": ann_username,
+                    "annotatorUsername": ann_user,
                     "label_data": ann_data
                 })
 
-        # Build ground truth (only if agreed)
+        # Ground truth — only for decided tasks
         ground_truth = None
         if r["status"] == "agreed" and r["consensus_result"]:
             ground_truth = {
                 **r["consensus_result"],
                 "auto_accepted": True,
-                "accepted_at": r["updated_at"]
+                "accepted_at": r["updated_at"],
+                "result": "PASSED"
             }
         elif r["status"] == "needs_review" and r["consensus_result"]:
             ground_truth = {
                 **r["consensus_result"],
                 "auto_accepted": False,
-                "requires_arbitration": True
+                "requires_arbitration": True,
+                "result": "FAILED — sent to arbitration"
             }
+
+        pct = round((r["agreement_score"] or 0) * 100, 1)
+        passed = (r["agreement_score"] or 0) >= 0.7
 
         tasks_export.append({
             "datasetObjectId": r["dataset_object_id"],
@@ -418,12 +497,21 @@ async def export_consensus_json_v2(
             "annotations": annotations,
             "consensus": r["consensus_result"],
             "agreement_score": r["agreement_score"],
+            "agreement_percentage": f"{pct}%",
+            "passed": passed,
             "status": r["status"] or "pending",
+            "result": (
+                "✅ PASSED — Ground truth auto-accepted"
+                if passed else
+                "⚠️ FAILED — Needs arbitration review"
+            ),
             "ground_truth": ground_truth,
             "metadata": {
                 "created_at": r["created_at"],
                 "completed_at": r["updated_at"],
-                "schema_version": "2.0"
+                "schema_version": "2.0",
+                "threshold": 0.7,
+                "rule": "agreement_score >= 0.7 → PASSED"
             }
         })
 
@@ -432,6 +520,15 @@ async def export_consensus_json_v2(
         "export_timestamp": datetime.now(
             timezone.utc
         ).isoformat().replace("+00:00", "Z"),
+        "consensus_rule": {
+            "threshold": 0.7,
+            "description": (
+                "agreement_score >= 0.70 → agreed (PASSED). "
+                "agreement_score < 0.70 → needs_review (FAILED)"
+            ),
+            "annotators_required": 3,
+            "majority": "2 of 3"
+        },
         "batch": {
             "id": batch[0],
             "name": batch[1],
@@ -443,9 +540,10 @@ async def export_consensus_json_v2(
             "agreed_tasks": agreed,
             "needs_review_tasks": needs_review,
             "pending_tasks": pending,
-            "agreement_rate": round(
-                agreed / total * 100, 1
-            ) if total > 0 else 0
+            "agreement_rate": (
+                f"{round(agreed / total * 100, 1)}%"
+                if total > 0 else "0%"
+            )
         },
         "tasks": tasks_export
     }
@@ -453,7 +551,9 @@ async def export_consensus_json_v2(
     return JSONResponse(
         content=export,
         headers={
-            "Content-Disposition": f'attachment; '
-            f'filename="bbc-CF-export-v2-batch{batch_id}.json"'
+            "Content-Disposition": (
+                f'attachment; filename='
+                f'"bbc-CF-export-v2-batch{batch_id}.json"'
+            )
         }
     )
