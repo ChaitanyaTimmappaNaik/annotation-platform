@@ -24,7 +24,9 @@ export default function QueueDashboard() {
 
   const connectWebSocket = () => {
     try {
-      const ws = new WebSocket(`wss://annotation-platform-m7im.onrender.com/batches/ws/${userId}`);
+      const ws = new WebSocket(
+        `wss://annotation-platform-m7im.onrender.com/batches/ws/${userId}`
+      );
       wsRef.current = ws;
       ws.onmessage = (event) => {
         const msg = JSON.parse(event.data);
@@ -51,13 +53,21 @@ export default function QueueDashboard() {
     const selectedTask = tasks.find(t => t.id === selected);
     try {
       if (selectedTask?.status === "in_progress") {
-        navigate(`/annotate/${selected}`);
+        // Resume — keep existing timer
+        const batchInfo = selectedTask.batch_id
+          ? `?batch_id=${selectedTask.batch_id}&dataset_object_id=${selectedTask.dataset_object_id || 0}`
+          : "";
+        navigate(`/annotate/${selected}${batchInfo}`);
         return;
       }
+      // New claim — clear old timer
       localStorage.removeItem(`timer_${selected}`);
       localStorage.removeItem(`timer_${selected}_savedAt`);
       await API.post(`/tasks/${selected}/claim`);
-      navigate(`/annotate/${selected}`);
+      const batchInfo = selectedTask.batch_id
+        ? `?batch_id=${selectedTask.batch_id}&dataset_object_id=${selectedTask.dataset_object_id || 0}`
+        : "";
+      navigate(`/annotate/${selected}${batchInfo}`);
     } catch (err) {
       alert(err.response?.data?.detail || "Could not claim task.");
     }
@@ -69,14 +79,12 @@ export default function QueueDashboard() {
     navigate("/login");
   };
 
-  // Double-click title column to toggle sort
-  const handleTitleDoubleClick = () => {
-    if (sortField === "id") {
-      // Toggle direction
+  // Double-click to sort
+  const handleDoubleClick = (field) => {
+    if (sortField === field) {
       setSortDir(prev => prev === "asc" ? "desc" : "asc");
     } else {
-      // First double-click — sort by task id asc
-      setSortField("id");
+      setSortField(field);
       setSortDir("asc");
     }
   };
@@ -84,8 +92,10 @@ export default function QueueDashboard() {
   const getSortedTasks = () => {
     if (!sortField) return tasks;
     return [...tasks].sort((a, b) => {
-      let valA = a[sortField];
-      let valB = b[sortField];
+      let valA = a[sortField] ?? "";
+      let valB = b[sortField] ?? "";
+      if (typeof valA === "string") valA = valA.toLowerCase();
+      if (typeof valB === "string") valB = valB.toLowerCase();
       if (valA < valB) return sortDir === "asc" ? -1 : 1;
       if (valA > valB) return sortDir === "asc" ? 1 : -1;
       return 0;
@@ -120,7 +130,8 @@ export default function QueueDashboard() {
 
   const thStyle = {
     padding: "10px 16px", textAlign: "left",
-    fontSize: 12, fontWeight: 700, color: "#16191f"
+    fontSize: 12, fontWeight: 700, color: "#16191f",
+    cursor: "pointer", userSelect: "none", whiteSpace: "nowrap"
   };
 
   return (
@@ -129,7 +140,8 @@ export default function QueueDashboard() {
 
       {/* Top Nav */}
       <div style={{ background: "#232F3E", padding: "6px 20px", color: "white",
-        display: "flex", alignItems: "center", justifyContent: "space-between", fontSize: 13 }}>
+        display: "flex", alignItems: "center",
+        justifyContent: "space-between", fontSize: 13 }}>
         <span style={{ fontWeight: 700 }}>🏷️ AnnotateHub</span>
         <div style={{ display: "flex", alignItems: "center", gap: 16 }}>
           <span>Hello, <strong>{username}</strong></span>
@@ -158,7 +170,8 @@ export default function QueueDashboard() {
           <div style={{ background: "#F0F8FF", border: "1px solid #0073BB",
             borderLeft: "4px solid #0073BB", borderRadius: 2,
             padding: "12px 16px", marginBottom: 16, fontSize: 13 }}>
-            <strong>No tasks available right now.</strong> Refresh to check for new jobs.
+            <strong>No tasks available right now.</strong>{" "}
+            Refresh to check for new jobs.
           </div>
         )}
 
@@ -171,7 +184,8 @@ export default function QueueDashboard() {
           <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
             <button onClick={fetchQueue}
               style={{ background: "white", border: "1px solid #D5DBDB",
-                padding: "6px 16px", borderRadius: 2, fontSize: 13, cursor: "pointer" }}>
+                padding: "6px 16px", borderRadius: 2,
+                fontSize: 13, cursor: "pointer" }}>
               🔄 Refresh
             </button>
             {selected ? (
@@ -195,7 +209,8 @@ export default function QueueDashboard() {
         {/* Search */}
         <div style={{ marginBottom: 8 }}>
           <div style={{ position: "relative", width: 300 }}>
-            <span style={{ position: "absolute", left: 10, top: 7, color: "#687078" }}>🔍</span>
+            <span style={{ position: "absolute", left: 10,
+              top: 7, color: "#687078" }}>🔍</span>
             <input style={{ width: "100%", border: "1px solid #aab7b8",
               borderRadius: 2, padding: "6px 10px 6px 32px", fontSize: 13 }}
               placeholder="Search tasks"
@@ -204,19 +219,21 @@ export default function QueueDashboard() {
           </div>
         </div>
 
+        <p style={{ fontSize: 11, color: "#aab7b8", marginBottom: 4 }}>
+          💡 Double-click any column header to sort ▲▼
+        </p>
+
         {/* Table */}
         <div style={{ background: "white", border: "1px solid #D5DBDB", borderRadius: 2 }}>
           <table style={{ width: "100%", borderCollapse: "collapse" }}>
             <thead>
               <tr style={{ background: "#FAFAFA", borderBottom: "1px solid #D5DBDB" }}>
                 <th style={{ width: 40, padding: "10px 16px" }}></th>
-
-                {/* Task Title — double click to sort */}
-                <th style={{ ...thStyle, cursor: "pointer", userSelect: "none" }}
-                  onDoubleClick={handleTitleDoubleClick}
-                  title="Double-click to sort by task number">
+                <th style={thStyle}
+                  onDoubleClick={() => handleDoubleClick("title")}
+                  title="Double-click to sort">
                   Task Title{" "}
-                  {sortField === "id" ? (
+                  {sortField === "title" ? (
                     <span style={{ color: "#FF9900" }}>
                       {sortDir === "asc" ? "▲" : "▼"}
                     </span>
@@ -224,25 +241,57 @@ export default function QueueDashboard() {
                     <span style={{ color: "#aab7b8", fontSize: 10 }}>⇅</span>
                   )}
                 </th>
-
-                <th style={thStyle}>Customer ID</th>
-                <th style={thStyle}>Status</th>
-                <th style={thStyle}>Created</th>
+                <th style={thStyle}
+                  onDoubleClick={() => handleDoubleClick("customer_id")}>
+                  Customer ID{" "}
+                  {sortField === "customer_id" ? (
+                    <span style={{ color: "#FF9900" }}>
+                      {sortDir === "asc" ? "▲" : "▼"}
+                    </span>
+                  ) : (
+                    <span style={{ color: "#aab7b8", fontSize: 10 }}>⇅</span>
+                  )}
+                </th>
+                <th style={thStyle}
+                  onDoubleClick={() => handleDoubleClick("status")}>
+                  Status{" "}
+                  {sortField === "status" ? (
+                    <span style={{ color: "#FF9900" }}>
+                      {sortDir === "asc" ? "▲" : "▼"}
+                    </span>
+                  ) : (
+                    <span style={{ color: "#aab7b8", fontSize: 10 }}>⇅</span>
+                  )}
+                </th>
+                <th style={thStyle}
+                  onDoubleClick={() => handleDoubleClick("created_at")}>
+                  Created{" "}
+                  {sortField === "created_at" ? (
+                    <span style={{ color: "#FF9900" }}>
+                      {sortDir === "asc" ? "▲" : "▼"}
+                    </span>
+                  ) : (
+                    <span style={{ color: "#aab7b8", fontSize: 10 }}>⇅</span>
+                  )}
+                </th>
               </tr>
             </thead>
             <tbody>
               {sortedTasks.length === 0 ? (
                 <tr>
-                  <td colSpan="5" style={{ textAlign: "center", padding: 40, color: "#687078" }}>
+                  <td colSpan="5" style={{ textAlign: "center",
+                    padding: 40, color: "#687078" }}>
                     No tasks available
                   </td>
                 </tr>
               ) : (
                 sortedTasks.map(task => {
-                  const isMyTask = task.status === "in_progress" || task.status === "paused";
+                  const isMyTask = task.status === "in_progress" ||
+                                   task.status === "paused";
                   return (
                     <tr key={task.id}
-                      style={{ cursor: "pointer", borderBottom: "1px solid #eaeded",
+                      style={{ cursor: "pointer",
+                        borderBottom: "1px solid #eaeded",
                         background: selected === task.id ? "#F0F8FF"
                           : isMyTask ? "#FFFBF5" : "white" }}
                       onClick={() => setSelected(task.id)}>
@@ -253,7 +302,8 @@ export default function QueueDashboard() {
                           style={{ accentColor: "#0073BB" }} />
                       </td>
                       <td style={{ padding: "10px 16px" }}>
-                        <span style={{ color: "#0073BB", fontWeight: 600, cursor: "pointer" }}>
+                        <span style={{ color: "#0073BB", fontWeight: 600,
+                          cursor: "pointer" }}>
                           {task.title}
                         </span>
                         {task.batch_name && (
@@ -261,6 +311,14 @@ export default function QueueDashboard() {
                             background: "#E8F4FD", color: "#0073BB",
                             padding: "1px 6px", borderRadius: 2 }}>
                             {task.batch_name}
+                          </span>
+                        )}
+                        {task.dataset_object_id !== undefined &&
+                         task.dataset_object_id !== null && (
+                          <span style={{ marginLeft: 4, fontSize: 10,
+                            background: "#F3E8FF", color: "#6A1B9A",
+                            padding: "1px 4px", borderRadius: 2 }}>
+                            #{task.dataset_object_id}
                           </span>
                         )}
                       </td>
@@ -291,10 +349,6 @@ export default function QueueDashboard() {
               color: "#aab7b8", cursor: "pointer" }}>›</button>
           </div>
         </div>
-
-        <p style={{ fontSize: 11, color: "#aab7b8", marginTop: 6 }}>
-          💡 Double-click "Task Title" to sort by task number ▲▼
-        </p>
       </div>
     </div>
   );

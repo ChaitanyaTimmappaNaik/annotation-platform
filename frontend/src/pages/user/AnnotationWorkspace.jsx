@@ -1,8 +1,7 @@
 import { useState, useEffect, useRef } from "react";
-import { useParams, useNavigate } from "react-router-dom";
+import { useParams, useNavigate, useSearchParams } from "react-router-dom";
 import API from "../../api/client";
 
-// Get saved time BEFORE component renders
 function getSavedTime(taskId) {
   const savedTime = localStorage.getItem(`timer_${taskId}`);
   const savedAt = localStorage.getItem(`timer_${taskId}_savedAt`);
@@ -14,49 +13,75 @@ function getSavedTime(taskId) {
   return 29 * 60 + 59;
 }
 
+const HARM_CATEGORIES = [
+  { key: "misconduct", label: "Misconduct" },
+  { key: "violence", label: "Violence" },
+  { key: "hate", label: "Hate" },
+  { key: "stereotype", label: "Stereotype" },
+  { key: "insults", label: "Insults" },
+  { key: "sexual", label: "Sexual" },
+];
+
+const INTENSITY_OPTIONS = ["None", "Low", "Medium", "High", "Hard-to-decide"];
+const INTENT_OPTIONS = ["Harmless", "Harmful", "Unspecified"];
+const CONFIDENCE_OPTIONS = [
+  "Completely Unconfident",
+  "Somewhat Unconfident",
+  "Neither Confident nor Unconfident",
+  "Somewhat Confident",
+  "Completely Confident"
+];
+const SEVERITY_OPTIONS = ["0", "1", "2", "3", "4", "5"];
+
 export default function AnnotationWorkspace() {
   const { taskId } = useParams();
+  const [searchParams] = useSearchParams();
+  const batchId = searchParams.get("batch_id");
+  const datasetObjectId = searchParams.get("dataset_object_id") || 0;
+
   const [task, setTask] = useState(null);
-  const [labels, setLabels] = useState([]);
-  const [selectedText, setSelectedText] = useState(null);
-  const [notes, setNotes] = useState("");
-  const [showInstructions, setShowInstructions] = useState(false);
+  const [progress, setProgress] = useState(null);
   const [timeLeft, setTimeLeft] = useState(() => getSavedTime(taskId));
-  const [activeTab, setActiveTab] = useState("annotations");
+  const [activeTab, setActiveTab] = useState("annotation");
+  const [showInstructions, setShowInstructions] = useState(false);
+
+  // Annotation state — matches Amazon SageMaker GT fields
+  const [hasHarm, setHasHarm] = useState(null); // true/false
+  const [intent, setIntent] = useState("");
+  const [intentRationale, setIntentRationale] = useState("");
+  const [intentConfidenceLevel, setIntentConfidenceLevel] = useState("");
+  const [selectedCategories, setSelectedCategories] = useState([]);
+  const [categoryData, setCategoryData] = useState({});
+  const [overallComments, setOverallComments] = useState("");
+
   const timerRef = useRef(null);
   const navigate = useNavigate();
   const username = localStorage.getItem("username");
+  const userId = localStorage.getItem("user_id");
 
   useEffect(() => {
     loadTask();
+    if (batchId) loadProgress();
+    startTimer();
+    return () => clearInterval(timerRef.current);
+  }, [taskId]);
 
-    // Start timer from saved time
-    const initialTime = getSavedTime(taskId);
-    setTimeLeft(initialTime);
-
+  const startTimer = () => {
+    const initial = getSavedTime(taskId);
+    setTimeLeft(initial);
     clearInterval(timerRef.current);
     timerRef.current = setInterval(() => {
       setTimeLeft(prev => {
         const next = prev - 1;
-        // Save every second with current timestamp
         localStorage.setItem(`timer_${taskId}`, next);
         localStorage.setItem(`timer_${taskId}_savedAt`, Date.now().toString());
-        if (next <= 0) {
-          clearInterval(timerRef.current);
-          return 0;
-        }
+        if (next <= 0) { clearInterval(timerRef.current); return 0; }
         return next;
       });
     }, 1000);
-
-    return () => clearInterval(timerRef.current);
-  }, [taskId]);
-
-  const formatTime = (seconds) => {
-    const m = Math.floor(seconds / 60);
-    const s = seconds % 60;
-    return `${m}:${String(s).padStart(2, "0")}`;
   };
+
+  const formatTime = (s) => `${Math.floor(s/60)}:${String(s%60).padStart(2,"0")}`;
 
   const loadTask = async () => {
     try {
@@ -68,71 +93,114 @@ export default function AnnotationWorkspace() {
     }
   };
 
-  const handleTextSelection = () => {
-    const selection = window.getSelection();
-    if (!selection.toString().trim()) return;
-    setSelectedText({ text: selection.toString().trim() });
+  const loadProgress = async () => {
+    try {
+      const res = await API.get(`/batches/progress/${batchId}`);
+      setProgress(res.data);
+    } catch {}
   };
 
-  const addLabel = (labelName) => {
-    if (!selectedText) return;
-    setLabels(prev => [...prev, { ...selectedText, label: labelName }]);
-    setSelectedText(null);
-    window.getSelection().removeAllRanges();
+  const toggleCategory = (key) => {
+    setSelectedCategories(prev =>
+      prev.includes(key) ? prev.filter(k => k !== key) : [...prev, key]
+    );
+    if (!categoryData[key]) {
+      setCategoryData(prev => ({
+        ...prev,
+        [key]: { intensity: "None", severity: "0", confidence: "Completely Confident" }
+      }));
+    }
   };
 
-  const removeLabel = (index) => setLabels(prev => prev.filter((_, i) => i !== index));
-
-  const handleDeclineTask = async () => {
-    if (!confirm("Decline this task? It will be returned to the queue.")) return;
-    localStorage.removeItem(`timer_${taskId}`);
-    localStorage.removeItem(`timer_${taskId}_savedAt`);
-    try { await API.put(`/tasks/${taskId}/release`); } catch {}
-    clearInterval(timerRef.current);
-    navigate("/queue");
+  const updateCategoryData = (catKey, field, value) => {
+    setCategoryData(prev => ({
+      ...prev,
+      [catKey]: { ...prev[catKey], [field]: value }
+    }));
   };
 
-  const handleReleaseTask = async () => {
-    if (!confirm("Release this task? It will be available for others.")) return;
-    localStorage.removeItem(`timer_${taskId}`);
-    localStorage.removeItem(`timer_${taskId}_savedAt`);
-    try { await API.put(`/tasks/${taskId}/release`); } catch {}
-    clearInterval(timerRef.current);
-    navigate("/queue");
+  const buildLabelData = () => {
+    const categories = {};
+    selectedCategories.forEach(cat => {
+      categories[cat] = categoryData[cat] || { intensity: "None", severity: "0", confidence: "Completely Confident" };
+    });
+    return {
+      has_harm: hasHarm,
+      intent: intent,
+      intent_rationale: intentRationale,
+      intent_confidence_level: intentConfidenceLevel,
+      harm_categories: categories,
+      overall_comments: overallComments,
+      annotator_id: userId,
+      submitted_at: new Date().toISOString()
+    };
+  };
+
+  const handleSubmit = async () => {
+    if (hasHarm === null) { alert("Please answer: Is there any harm in this text?"); return; }
+    if (hasHarm && !intent) { alert("Please select the intent."); return; }
+    if (hasHarm && selectedCategories.length === 0) { alert("Please select at least one harm category."); return; }
+
+    const timeSpent = (29 * 60 + 59) - timeLeft;
+    const labelData = buildLabelData();
+
+    try {
+      if (batchId) {
+        // Consensus workflow
+        const res = await API.post("/consensus/submit", {
+          task_id: parseInt(taskId),
+          batch_id: parseInt(batchId),
+          dataset_object_id: parseInt(datasetObjectId),
+          label_data: labelData,
+          notes: overallComments,
+          time_spent: timeSpent
+        });
+
+        localStorage.removeItem(`timer_${taskId}`);
+        localStorage.removeItem(`timer_${taskId}_savedAt`);
+        clearInterval(timerRef.current);
+
+        if (res.data.batch_complete) {
+          alert("🎉 Batch complete! All tasks annotated.");
+          navigate("/queue");
+        } else if (res.data.next_task_id) {
+          // Auto-load next task
+          navigate(`/annotate/${res.data.next_task_id}?batch_id=${batchId}&dataset_object_id=${parseInt(datasetObjectId)+1}`);
+        } else {
+          navigate("/queue");
+        }
+      } else {
+        // Standard workflow
+        await API.post(`/annotations/tasks/${taskId}`, {
+          label_data: labelData,
+          notes: overallComments,
+          time_spent: timeSpent
+        });
+        localStorage.removeItem(`timer_${taskId}`);
+        localStorage.removeItem(`timer_${taskId}_savedAt`);
+        clearInterval(timerRef.current);
+        alert("Task submitted!");
+        navigate("/queue");
+      }
+    } catch (err) {
+      alert(err.response?.data?.detail || "Could not submit.");
+    }
   };
 
   const handleStopResume = () => {
-    // Save EXACT current time + when we saved it
     localStorage.setItem(`timer_${taskId}`, timeLeft.toString());
     localStorage.setItem(`timer_${taskId}_savedAt`, Date.now().toString());
     clearInterval(timerRef.current);
     navigate("/queue");
   };
 
-  const handleSaveAnnotation = async () => {
-    if (labels.length === 0) { alert("Please add at least one label."); return; }
-    try {
-      const timeSpent = (29 * 60 + 59) - timeLeft;
-      await API.post(`/annotations/tasks/${taskId}`, {
-        label_data: { spans: labels }, notes, time_spent: timeSpent
-      });
-      alert("Annotations saved!");
-    } catch { alert("Could not save."); }
-  };
-
-  const handleSubmitTask = async () => {
-    if (labels.length === 0) { alert("Please add at least one label."); return; }
-    try {
-      const timeSpent = (29 * 60 + 59) - timeLeft;
-      await API.post(`/annotations/tasks/${taskId}`, {
-        label_data: { spans: labels }, notes, time_spent: timeSpent
-      });
-      localStorage.removeItem(`timer_${taskId}`);
-      localStorage.removeItem(`timer_${taskId}_savedAt`);
-      clearInterval(timerRef.current);
-      alert("Task submitted successfully!");
-      navigate("/queue");
-    } catch { alert("Could not submit."); }
+  const handleDecline = async () => {
+    if (!confirm("Decline this task?")) return;
+    localStorage.removeItem(`timer_${taskId}`);
+    localStorage.removeItem(`timer_${taskId}_savedAt`);
+    try { await API.put(`/tasks/${taskId}/release`); } catch {}
+    clearInterval(timerRef.current);
+    navigate("/queue");
   };
 
   if (!task) return (
@@ -141,7 +209,6 @@ export default function AnnotationWorkspace() {
     </div>
   );
 
-  const ontologyLabels = task.ontology?.labels || ["PER", "ORG", "LOC", "DATE", "MISC"];
   const isUrgent = timeLeft < 5 * 60;
 
   return (
@@ -156,26 +223,49 @@ export default function AnnotationWorkspace() {
           <span>Customer ID: <strong>{task.customer_id || "—"}</strong></span>
           <span style={{ color: "#aab7b8" }}>|</span>
           <span>Task: <strong>{task.title}</strong></span>
+          {batchId && progress && (
+            <>
+              <span style={{ color: "#aab7b8" }}>|</span>
+              <span style={{ color: "#FF9900", fontWeight: 700 }}>
+                Task {progress.completed + 1} of {progress.total}
+              </span>
+            </>
+          )}
           <span style={{ color: "#aab7b8" }}>|</span>
           <span style={{ fontWeight: 700, color: isUrgent ? "#ff6b6b" : "#FF9900" }}>
             ⏱ {formatTime(timeLeft)}
           </span>
         </div>
         <div style={{ display: "flex", gap: 8 }}>
-          {[
-            { label: "Decline task", action: handleDeclineTask },
-            { label: "Release task", action: handleReleaseTask },
-            { label: "Stop and resume later", action: handleStopResume },
-          ].map(btn => (
-            <button key={btn.label} onClick={btn.action}
-              style={{ background: "transparent", border: "1px solid #aab7b8",
-                color: "white", padding: "4px 10px", borderRadius: 2,
-                fontSize: 11, cursor: "pointer", whiteSpace: "nowrap" }}>
-              {btn.label}
-            </button>
-          ))}
+          <button onClick={handleDecline}
+            style={{ background: "transparent", border: "1px solid #aab7b8",
+              color: "white", padding: "4px 10px", borderRadius: 2, fontSize: 11, cursor: "pointer" }}>
+            Decline task
+          </button>
+          <button onClick={handleStopResume}
+            style={{ background: "transparent", border: "1px solid #aab7b8",
+              color: "white", padding: "4px 10px", borderRadius: 2, fontSize: 11, cursor: "pointer" }}>
+            Stop and resume later
+          </button>
         </div>
       </div>
+
+      {/* Progress Bar */}
+      {batchId && progress && (
+        <div style={{ background: "#F2F3F3", padding: "8px 20px",
+          borderBottom: "1px solid #D5DBDB", display: "flex", alignItems: "center", gap: 12 }}>
+          <span style={{ fontSize: 12, color: "#687078", whiteSpace: "nowrap" }}>
+            Batch Progress: {progress.completed}/{progress.total}
+          </span>
+          <div style={{ flex: 1, background: "#D5DBDB", borderRadius: 4, height: 8 }}>
+            <div style={{ width: `${progress.percentage}%`, background: "#FF9900",
+              borderRadius: 4, height: 8, transition: "width 0.3s" }} />
+          </div>
+          <span style={{ fontSize: 12, fontWeight: 700, color: "#FF9900" }}>
+            {progress.percentage}%
+          </span>
+        </div>
+      )}
 
       {/* Instructions Bar */}
       <div style={{ background: "#F2F3F3", borderBottom: "1px solid #D5DBDB",
@@ -188,157 +278,257 @@ export default function AnnotationWorkspace() {
         {showInstructions && (
           <span style={{ fontSize: 13, color: "#16191f",
             borderLeft: "1px solid #D5DBDB", paddingLeft: 12 }}>
-            {task.instructions || "No instructions provided."}
+            {task.instructions || "Label the content according to the harm categories."}
           </span>
         )}
+        <span style={{ marginLeft: "auto", fontSize: 11, color: "#687078",
+          background: "#E8F4FD", padding: "2px 8px", borderRadius: 2 }}>
+          datasetObjectId: {datasetObjectId}
+        </span>
       </div>
 
       {/* Main Body */}
-      <div style={{ display: "flex", flex: 1, overflow: "hidden" }}>
+      <div style={{ display: "flex", flex: 1 }}>
 
         {/* Left - Document */}
         <div style={{ flex: 1, padding: 24, overflowY: "auto", borderRight: "1px solid #D5DBDB" }}>
-          <div style={{ display: "flex", justifyContent: "space-between",
-            alignItems: "flex-start", marginBottom: 16 }}>
+          <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 12 }}>
             <div>
-              <h2 style={{ fontSize: 16, fontWeight: 700, color: "#16191f", margin: 0 }}>
-                Document Annotation Task
+              <h2 style={{ fontSize: 15, fontWeight: 700, margin: 0 }}>
+                Turn 1
               </h2>
-              <p style={{ fontSize: 12, color: "#687078", marginTop: 4 }}>
-                Select text in the document below to add labels
-              </p>
-            </div>
-            <div style={{ display: "flex", gap: 8 }}>
-              <button onClick={handleSaveAnnotation}
-                style={{ background: "white", border: "1px solid #0073BB",
-                  color: "#0073BB", padding: "6px 16px", borderRadius: 2,
-                  fontSize: 13, cursor: "pointer" }}>
-                Save Annotations
-              </button>
-              <button onClick={handleSubmitTask}
-                style={{ background: "#FF9900", border: "1px solid #EC7211",
-                  color: "black", padding: "6px 16px", borderRadius: 2,
-                  fontSize: 13, fontWeight: 700, cursor: "pointer" }}>
-                Submit Task
-              </button>
+              <span style={{ fontSize: 11, color: "#687078" }}>role: COMPLETION</span>
             </div>
           </div>
 
-          {/* Document Text */}
-          <div onMouseUp={handleTextSelection}
-            style={{ padding: 16, background: "#FAFAFA", border: "1px solid #D5DBDB",
-              borderRadius: 2, fontSize: 14, lineHeight: 2, color: "#16191f",
-              userSelect: "text", cursor: "text", minHeight: 200 }}>
+          {/* Content Box */}
+          <div style={{ background: "#FAFAFA", border: "1px solid #D5DBDB",
+            borderRadius: 4, padding: 16, fontSize: 14, lineHeight: 1.8,
+            color: "#16191f", minHeight: 180 }}>
             {task.data_content || "No content available."}
           </div>
 
-          {/* Label Picker */}
-          {selectedText && (
-            <div style={{ marginTop: 12, background: "#FEF9E7",
-              border: "1px solid #FF9900", borderRadius: 2, padding: 12 }}>
-              <p style={{ fontSize: 13, fontWeight: 700, margin: "0 0 8px" }}>
-                Selected: "<em style={{ color: "#0073BB" }}>{selectedText.text}</em>" — Choose a label:
-              </p>
-              <div style={{ display: "flex", flexWrap: "wrap", gap: 8, marginTop: 8 }}>
-                {ontologyLabels.map(label => (
-                  <button key={label} onClick={() => addLabel(label)}
-                    style={{ background: "#FF9900", border: "1px solid #EC7211",
-                      color: "black", padding: "4px 12px", borderRadius: 2,
-                      fontSize: 12, fontWeight: 700, cursor: "pointer" }}>
-                    {label}
-                  </button>
-                ))}
-                <button onClick={() => setSelectedText(null)}
-                  style={{ background: "white", border: "1px solid #D5DBDB",
-                    color: "#687078", padding: "4px 12px", borderRadius: 2,
-                    fontSize: 12, cursor: "pointer" }}>
-                  Cancel
-                </button>
-              </div>
-            </div>
-          )}
-
-          {/* Labeled Spans */}
-          {labels.length > 0 && (
-            <div style={{ marginTop: 12, border: "1px solid #D5DBDB", borderRadius: 2, background: "white" }}>
-              <div style={{ padding: "8px 16px", background: "#FAFAFA", borderBottom: "1px solid #D5DBDB" }}>
-                <strong style={{ fontSize: 13 }}>Labeled Spans ({labels.length})</strong>
-              </div>
-              {labels.map((l, i) => (
-                <div key={i} style={{ display: "flex", alignItems: "center",
-                  gap: 8, padding: "8px 16px", borderBottom: "1px solid #eaeded", fontSize: 13 }}>
-                  <span style={{ background: "#FF9900", color: "black",
-                    padding: "2px 8px", borderRadius: 2, fontSize: 11, fontWeight: 700 }}>
-                    {l.label}
-                  </span>
-                  <span style={{ color: "#16191f", flex: 1 }}>"{l.text}"</span>
-                  <button onClick={() => removeLabel(i)}
-                    style={{ background: "none", border: "none",
-                      color: "#D13212", cursor: "pointer", fontSize: 16, fontWeight: 700 }}>×</button>
-                </div>
-              ))}
-            </div>
-          )}
+          <p style={{ fontSize: 11, color: "#687078", marginTop: 8, fontStyle: "italic" }}>
+            Treat the data in this task as confidential.
+          </p>
         </div>
 
-        {/* Right Panel */}
-        <div style={{ width: 300, background: "#FAFAFA", display: "flex", flexDirection: "column" }}>
-          <div style={{ padding: "12px 16px", borderBottom: "1px solid #D5DBDB", background: "white" }}>
-            <p style={{ fontSize: 13, fontWeight: 700, margin: 0 }}>
-              Total Annotations: <span style={{ color: "#0073BB" }}>{labels.length}</span>
-            </p>
-          </div>
+        {/* Right - Annotation Panel */}
+        <div style={{ width: 380, overflowY: "auto", display: "flex", flexDirection: "column" }}>
 
-          <div style={{ display: "flex", borderBottom: "1px solid #D5DBDB", background: "white" }}>
-            {["annotations", "labelform"].map(tab => (
+          {/* Tabs */}
+          <div style={{ display: "flex", borderBottom: "1px solid #D5DBDB", background: "#FAFAFA" }}>
+            {["annotation", "reference"].map(tab => (
               <button key={tab} onClick={() => setActiveTab(tab)}
                 style={{ flex: 1, padding: "10px 0", fontSize: 13,
                   fontWeight: activeTab === tab ? 700 : 400,
                   background: "none", border: "none", cursor: "pointer",
                   borderBottom: activeTab === tab ? "2px solid #FF9900" : "2px solid transparent",
-                  color: activeTab === tab ? "#16191f" : "#687078" }}>
-                {tab === "annotations" ? "Annotations" : "Label Form"}
+                  color: activeTab === tab ? "#16191f" : "#687078",
+                  textTransform: "capitalize" }}>
+                {tab === "annotation" ? "Annotation Panel" : "Reference"}
               </button>
             ))}
           </div>
 
-          <div style={{ flex: 1, overflowY: "auto", padding: 12 }}>
-            {activeTab === "annotations" ? (
-              labels.length === 0 ? (
-                <p style={{ fontSize: 12, color: "#687078", textAlign: "center", padding: "24px 0" }}>
-                  Select text to add annotations
-                </p>
-              ) : (
-                labels.map((l, i) => (
-                  <div key={i} style={{ background: "white", border: "1px solid #D5DBDB",
-                    borderRadius: 2, padding: 12, marginBottom: 8, fontSize: 12 }}>
-                    <p style={{ fontWeight: 700, color: "#16191f", margin: "0 0 6px", wordBreak: "break-word" }}>
-                      "{l.text}"
-                    </p>
-                    <div style={{ color: "#687078" }}>
-                      label: <span style={{ color: "#FF9900", fontWeight: 700 }}>{l.label}</span>
-                    </div>
+          <div style={{ flex: 1, padding: 16, overflowY: "auto" }}>
+
+            {activeTab === "reference" ? (
+              <div style={{ fontSize: 13, color: "#687078" }}>
+                <h3 style={{ fontSize: 14, fontWeight: 700, color: "#16191f" }}>Harm Categories Reference</h3>
+                {HARM_CATEGORIES.map(cat => (
+                  <div key={cat.key} style={{ marginBottom: 8, padding: 8,
+                    background: "#F8F8F8", borderRadius: 2 }}>
+                    <strong>{cat.label}</strong>
                   </div>
-                ))
-              )
+                ))}
+              </div>
             ) : (
               <div>
-                <label style={{ fontSize: 12, fontWeight: 700, display: "block", marginBottom: 4 }}>
-                  Notes (optional)
-                </label>
-                <textarea
-                  style={{ width: "100%", border: "1px solid #aab7b8", borderRadius: 2,
-                    padding: "8px 10px", fontSize: 12, marginBottom: 12, resize: "vertical", height: 100 }}
-                  value={notes}
-                  onChange={e => setNotes(e.target.value)}
-                  placeholder="Add annotation notes..."
-                />
-                <button onClick={handleSubmitTask}
+
+                {/* Step 1: Is there harm? */}
+                <div style={{ marginBottom: 16, padding: 12, background: "#F8F8F8",
+                  borderRadius: 4, border: "1px solid #D5DBDB" }}>
+                  <label style={{ fontSize: 13, fontWeight: 700, display: "block", marginBottom: 8 }}>
+                    Step 1: Is there any harm in this text? *
+                  </label>
+                  <div style={{ display: "flex", gap: 12 }}>
+                    {[
+                      { label: "Yes — Harm detected", value: true },
+                      { label: "No harm", value: false }
+                    ].map(opt => (
+                      <label key={String(opt.value)} style={{ display: "flex",
+                        alignItems: "center", gap: 6, cursor: "pointer", fontSize: 13 }}>
+                        <input type="radio" name="hasHarm"
+                          checked={hasHarm === opt.value}
+                          onChange={() => setHasHarm(opt.value)} />
+                        {opt.label}
+                      </label>
+                    ))}
+                  </div>
+                </div>
+
+                {hasHarm === false && (
+                  <div style={{ background: "#d5f5e3", border: "1px solid #1D8102",
+                    borderRadius: 4, padding: 12, marginBottom: 16, fontSize: 13, color: "#1D8102" }}>
+                    ✅ No harm detected — you can submit directly.
+                  </div>
+                )}
+
+                {hasHarm === true && (
+                  <>
+                    {/* Step 2: Intent */}
+                    <div style={{ marginBottom: 16, padding: 12, background: "#F8F8F8",
+                      borderRadius: 4, border: "1px solid #D5DBDB" }}>
+                      <label style={{ fontSize: 13, fontWeight: 700, display: "block", marginBottom: 8 }}>
+                        Step 2: Intent Evaluation *
+                      </label>
+                      <select
+                        style={{ width: "100%", border: "1px solid #aab7b8", borderRadius: 2,
+                          padding: "6px 8px", fontSize: 13, marginBottom: 8 }}
+                        value={intent}
+                        onChange={e => setIntent(e.target.value)}>
+                        <option value="">Select intent...</option>
+                        {INTENT_OPTIONS.map(o => <option key={o} value={o}>{o}</option>)}
+                      </select>
+                      {intent && (
+                        <>
+                          <label style={{ fontSize: 12, fontWeight: 700, display: "block", marginBottom: 4 }}>
+                            Provide rationale *
+                          </label>
+                          <textarea
+                            style={{ width: "100%", border: "1px solid #aab7b8", borderRadius: 2,
+                              padding: "6px 8px", fontSize: 12, resize: "vertical", height: 60 }}
+                            placeholder="Explain why you chose this intent..."
+                            value={intentRationale}
+                            onChange={e => setIntentRationale(e.target.value)} />
+                          <label style={{ fontSize: 12, fontWeight: 700, display: "block",
+                            marginBottom: 4, marginTop: 8 }}>
+                            Intent Confidence Level *
+                          </label>
+                          {CONFIDENCE_OPTIONS.map(opt => (
+                            <label key={opt} style={{ display: "flex", alignItems: "center",
+                              gap: 6, cursor: "pointer", fontSize: 12, marginBottom: 4 }}>
+                              <input type="radio" name="intentConfidence"
+                                checked={intentConfidenceLevel === opt}
+                                onChange={() => setIntentConfidenceLevel(opt)} />
+                              {opt}
+                            </label>
+                          ))}
+                        </>
+                      )}
+                    </div>
+
+                    {/* Step 3: Harm Categories */}
+                    <div style={{ marginBottom: 16, padding: 12, background: "#F8F8F8",
+                      borderRadius: 4, border: "1px solid #D5DBDB" }}>
+                      <label style={{ fontSize: 13, fontWeight: 700, display: "block", marginBottom: 8 }}>
+                        Step 3: Select Harm Categories *
+                      </label>
+                      <div style={{ display: "flex", flexWrap: "wrap", gap: 6, marginBottom: 12 }}>
+                        {HARM_CATEGORIES.map(cat => (
+                          <button key={cat.key}
+                            onClick={() => toggleCategory(cat.key)}
+                            style={{ padding: "4px 10px", borderRadius: 2, fontSize: 12,
+                              cursor: "pointer", fontWeight: 600,
+                              background: selectedCategories.includes(cat.key) ? "#FF9900" : "white",
+                              border: selectedCategories.includes(cat.key)
+                                ? "1px solid #EC7211" : "1px solid #D5DBDB",
+                              color: selectedCategories.includes(cat.key) ? "black" : "#687078" }}>
+                            {cat.label}
+                          </button>
+                        ))}
+                      </div>
+
+                      {/* Per-category annotations */}
+                      {selectedCategories.map(catKey => {
+                        const cat = HARM_CATEGORIES.find(c => c.key === catKey);
+                        const data = categoryData[catKey] || {};
+                        return (
+                          <div key={catKey} style={{ marginBottom: 12, padding: 10,
+                            background: "white", borderRadius: 2,
+                            border: "1px solid #FF9900" }}>
+                            <div style={{ fontWeight: 700, fontSize: 13,
+                              color: "#FF9900", marginBottom: 8 }}>
+                              {cat?.label}
+                            </div>
+
+                            <label style={{ fontSize: 11, fontWeight: 700,
+                              display: "block", marginBottom: 4 }}>
+                              Intensity *
+                            </label>
+                            <select
+                              style={{ width: "100%", border: "1px solid #aab7b8",
+                                borderRadius: 2, padding: "4px 6px", fontSize: 12, marginBottom: 8 }}
+                              value={data.intensity || "None"}
+                              onChange={e => updateCategoryData(catKey, "intensity", e.target.value)}>
+                              {INTENSITY_OPTIONS.map(o => <option key={o} value={o}>{o}</option>)}
+                            </select>
+
+                            <label style={{ fontSize: 11, fontWeight: 700,
+                              display: "block", marginBottom: 4 }}>
+                              Severity (0-5) *
+                            </label>
+                            <div style={{ display: "flex", gap: 6, marginBottom: 8 }}>
+                              {SEVERITY_OPTIONS.map(s => (
+                                <label key={s} style={{ display: "flex", alignItems: "center",
+                                  gap: 3, cursor: "pointer", fontSize: 12 }}>
+                                  <input type="radio"
+                                    name={`severity_${catKey}`}
+                                    checked={data.severity === s}
+                                    onChange={() => updateCategoryData(catKey, "severity", s)} />
+                                  {s}
+                                </label>
+                              ))}
+                            </div>
+
+                            <label style={{ fontSize: 11, fontWeight: 700,
+                              display: "block", marginBottom: 4 }}>
+                              Confidence Level *
+                            </label>
+                            {CONFIDENCE_OPTIONS.map(opt => (
+                              <label key={opt} style={{ display: "flex", alignItems: "center",
+                                gap: 6, cursor: "pointer", fontSize: 11, marginBottom: 3 }}>
+                                <input type="radio"
+                                  name={`conf_${catKey}`}
+                                  checked={data.confidence === opt}
+                                  onChange={() => updateCategoryData(catKey, "confidence", opt)} />
+                                {opt}
+                              </label>
+                            ))}
+                          </div>
+                        );
+                      })}
+                    </div>
+                  </>
+                )}
+
+                {/* Overall Comments */}
+                <div style={{ marginBottom: 16 }}>
+                  <label style={{ fontSize: 12, fontWeight: 700, display: "block", marginBottom: 4 }}>
+                    Overall Comments (optional)
+                  </label>
+                  <textarea
+                    style={{ width: "100%", border: "1px solid #aab7b8", borderRadius: 2,
+                      padding: "8px 10px", fontSize: 12, resize: "vertical", height: 60 }}
+                    placeholder="Add any additional notes..."
+                    value={overallComments}
+                    onChange={e => setOverallComments(e.target.value)} />
+                </div>
+
+                {/* Submit Button */}
+                <button onClick={handleSubmit}
                   style={{ width: "100%", background: "#FF9900", border: "1px solid #EC7211",
-                    color: "black", padding: "8px 0", borderRadius: 2,
-                    fontSize: 13, fontWeight: 700, cursor: "pointer" }}>
-                  Submit Task
+                    color: "black", padding: "10px 0", borderRadius: 2,
+                    fontSize: 14, fontWeight: 700, cursor: "pointer" }}>
+                  {batchId ? "Submit & Load Next Task →" : "Submit Task"}
                 </button>
+
+                {batchId && progress && (
+                  <p style={{ fontSize: 11, color: "#687078", textAlign: "center", marginTop: 8 }}>
+                    {progress.remaining} tasks remaining in this batch
+                  </p>
+                )}
               </div>
             )}
           </div>

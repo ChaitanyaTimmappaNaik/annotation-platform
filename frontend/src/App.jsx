@@ -1,5 +1,4 @@
 import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
-import Settings from "./pages/admin/Settings";
 import UserLogin from "./pages/user/Login";
 import QueueDashboard from "./pages/user/QueueDashboard";
 import AnnotationWorkspace from "./pages/user/AnnotationWorkspace";
@@ -14,6 +13,8 @@ import TaskManagement from "./pages/admin/TaskManagement";
 import Analytics from "./pages/admin/Analytics";
 import ReviewQueue from "./pages/admin/ReviewQueue";
 import DatasetUpload from "./pages/admin/DatasetUpload";
+import Settings from "./pages/admin/Settings";
+import ConsensusResults from "./pages/admin/ConsensusResults";
 
 function ProtectedRoute({ children, requireAdmin = false }) {
   const token = localStorage.getItem("token");
@@ -31,6 +32,7 @@ export default function App() {
         <Route path="/login" element={<UserLogin />} />
         <Route path="/reset-password" element={<UserLogin />} />
 
+        {/* Annotator Routes */}
         <Route path="/queue" element={
           <ProtectedRoute><QueueDashboard /></ProtectedRoute>
         } />
@@ -38,6 +40,7 @@ export default function App() {
           <ProtectedRoute><AnnotationWorkspace /></ProtectedRoute>
         } />
 
+        {/* Admin Routes */}
         <Route path="/admin/dashboard" element={
           <ProtectedRoute requireAdmin><AdminDashboard /></ProtectedRoute>
         } />
@@ -56,6 +59,9 @@ export default function App() {
         <Route path="/admin/batches" element={
           <ProtectedRoute requireAdmin><BatchManagement /></ProtectedRoute>
         } />
+        <Route path="/admin/batches/:batchId/consensus" element={
+          <ProtectedRoute requireAdmin><ConsensusResults /></ProtectedRoute>
+        } />
         <Route path="/admin/tasks" element={
           <ProtectedRoute requireAdmin><TaskManagement /></ProtectedRoute>
         } />
@@ -69,27 +75,24 @@ export default function App() {
           <ProtectedRoute requireAdmin><DatasetUpload /></ProtectedRoute>
         } />
         <Route path="/admin/settings" element={
-        <ProtectedRoute requireAdmin><Settings /></ProtectedRoute>
+          <ProtectedRoute requireAdmin><Settings /></ProtectedRoute>
         } />
-        
         <Route path="/admin/help" element={
           <ProtectedRoute requireAdmin>
-            <PlaceholderPage title="Help" description="Documentation and support." icon="❓" active="Help" />
-          </ProtectedRoute>
-        } />
-        <Route path="/admin/usage" element={
-          <ProtectedRoute requireAdmin>
-            <PlaceholderPage title="Usage Analytics" description="Platform statistics." icon="📈" active="Usage" />
+            <PlaceholderPage title="Help"
+              description="Documentation and support." icon="❓" active="Help" />
           </ProtectedRoute>
         } />
         <Route path="/admin/ontology" element={
           <ProtectedRoute requireAdmin>
-            <PlaceholderPage title="Ontology Manager" description="Manage label ontologies." icon="🏷️" active="Ontology" />
+            <PlaceholderPage title="Ontology Manager"
+              description="Manage label ontologies." icon="🏷️" active="Ontology" />
           </ProtectedRoute>
         } />
         <Route path="/admin/api-keys" element={
           <ProtectedRoute requireAdmin>
-            <PlaceholderPage title="API Keys" description="Manage API access." icon="🔑" active="API Keys" />
+            <PlaceholderPage title="API Keys"
+              description="Manage API access." icon="🔑" active="API Keys" />
           </ProtectedRoute>
         } />
       </Routes>

@@ -1,7 +1,7 @@
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from database import engine, Base
-from routers import auth, users, projects, tasks, annotations, batches, analytics
+from routers import auth, users, projects, tasks, annotations, batches, analytics, consensus
 from dotenv import load_dotenv
 import os
 
@@ -9,7 +9,7 @@ load_dotenv()
 
 Base.metadata.create_all(bind=engine)
 
-app = FastAPI(title="AnnotateHub API", version="3.0.0")
+app = FastAPI(title="AnnotateHub API", version="4.0.0")
 
 cors_origins = os.getenv(
     "CORS_ORIGINS",
@@ -31,11 +31,12 @@ app.include_router(tasks.router)
 app.include_router(annotations.router)
 app.include_router(batches.router)
 app.include_router(analytics.router)
+app.include_router(consensus.router)
 
 @app.get("/")
 def root():
-    return {"message": "AnnotateHub API v3.0 is running!"}
+    return {"message": "AnnotateHub API v4.0 is running!"}
 
 @app.get("/health")
 def health():
-    return {"status": "healthy", "version": "3.0.0"}
+    return {"status": "healthy", "version": "4.0.0"}
