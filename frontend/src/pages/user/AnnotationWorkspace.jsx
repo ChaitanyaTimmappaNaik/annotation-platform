@@ -33,7 +33,6 @@ const CONFIDENCE_OPTIONS = [
 ];
 const SEVERITY_OPTIONS = ["0", "1", "2", "3", "4", "5"];
 
-// ── Reset all annotation state to clean slate ──
 const INITIAL_STATE = {
   hasHarm: null,
   intent: "",
@@ -56,8 +55,6 @@ export default function AnnotationWorkspace() {
   const [activeTab, setActiveTab] = useState("annotation");
   const [showInstructions, setShowInstructions] = useState(false);
   const [submitting, setSubmitting] = useState(false);
-
-  // ── All annotation state in one object for easy reset ──
   const [annotation, setAnnotation] = useState(INITIAL_STATE);
 
   const timerRef = useRef(null);
@@ -67,13 +64,11 @@ export default function AnnotationWorkspace() {
 
   // Reset everything when taskId changes
   useEffect(() => {
-    // 1. Reset annotation state
     setAnnotation(INITIAL_STATE);
     setActiveTab("annotation");
     setShowInstructions(false);
     setSubmitting(false);
 
-    // 2. Reset timer
     clearInterval(timerRef.current);
     const initial = getSavedTime(taskId);
     setTimeLeft(initial);
@@ -87,7 +82,6 @@ export default function AnnotationWorkspace() {
       });
     }, 1000);
 
-    // 3. Load task and progress
     loadTask();
     if (batchId) loadProgress();
 
@@ -114,7 +108,6 @@ export default function AnnotationWorkspace() {
     } catch {}
   };
 
-  // ── Annotation helpers ──
   const setField = (field, value) =>
     setAnnotation(prev => ({ ...prev, [field]: value }));
 
@@ -159,6 +152,9 @@ export default function AnnotationWorkspace() {
       };
     });
     return {
+      task_id: taskId,
+      dataset_object_id: datasetObjectId,
+      batch_id: batchId,
       has_harm: annotation.hasHarm,
       intent: annotation.intent,
       intent_rationale: annotation.intentRationale,
@@ -196,7 +192,6 @@ export default function AnnotationWorkspace() {
           time_spent: timeSpent
         });
 
-        // Clear timer for this task
         localStorage.removeItem(`timer_${taskId}`);
         localStorage.removeItem(`timer_${taskId}_savedAt`);
         clearInterval(timerRef.current);
@@ -207,7 +202,6 @@ export default function AnnotationWorkspace() {
         } else if (res.data.next_task_id) {
           const nextId = res.data.next_task_id;
           const nextObjId = parseInt(datasetObjectId) + 1;
-          // Navigate to next task — useEffect will reset everything
           navigate(
             `/annotate/${nextId}?batch_id=${batchId}&dataset_object_id=${nextObjId}`,
             { replace: true }
@@ -271,29 +265,22 @@ export default function AnnotationWorkspace() {
     <div style={{ minHeight: "100vh", background: "white",
       display: "flex", flexDirection: "column" }}>
 
-      {/* Top Header */}
+      {/* ── Top Header ── */}
       <div style={{ background: "#232F3E", color: "white",
-        padding: "6px 20px", display: "flex", alignItems: "center",
-        justifyContent: "space-between", flexWrap: "wrap", gap: 8 }}>
+        padding: "6px 20px", display: "flex",
+        alignItems: "center", justifyContent: "space-between",
+        flexWrap: "wrap", gap: 8 }}>
         <div style={{ display: "flex", alignItems: "center",
           gap: 16, fontSize: 12, flexWrap: "wrap" }}>
           <span>Hello, <strong>{username}</strong></span>
           <span style={{ color: "#aab7b8" }}>|</span>
-          <span>Customer ID: <strong>{task.customer_id || "—"}</strong></span>
+          <span>Customer ID: <strong>{task.customer_id || "977099032732"}</strong></span>
           <span style={{ color: "#aab7b8" }}>|</span>
-          <span>Task: <strong>{task.title}</strong></span>
-          {batchId && progress && (
-            <>
-              <span style={{ color: "#aab7b8" }}>|</span>
-              <span style={{ color: "#FF9900", fontWeight: 700 }}>
-                Task {progress.completed + 1} of {progress.total}
-              </span>
-            </>
-          )}
+          <span>Task description: <strong>{task.title}</strong></span>
           <span style={{ color: "#aab7b8" }}>|</span>
           <span style={{ fontWeight: 700,
             color: isUrgent ? "#ff6b6b" : "#FF9900" }}>
-            ⏱ {formatTime(timeLeft)}
+            Task time: ⏱ {formatTime(timeLeft)}
           </span>
         </div>
         <div style={{ display: "flex", gap: 8 }}>
@@ -314,8 +301,9 @@ export default function AnnotationWorkspace() {
         </div>
       </div>
 
-      {/* Instructions Bar */}
-      <div style={{ background: "#F2F3F3", borderBottom: "1px solid #D5DBDB",
+      {/* ── Task ID + Instructions Bar ── */}
+      <div style={{ background: "#F2F3F3",
+        borderBottom: "1px solid #D5DBDB",
         padding: "6px 20px", display: "flex",
         alignItems: "center", gap: 12 }}>
         <button style={{ color: "#0073BB", fontSize: 13,
@@ -331,14 +319,53 @@ export default function AnnotationWorkspace() {
               "Label the content according to the harm categories."}
           </span>
         )}
-        <span style={{ marginLeft: "auto", fontSize: 11,
-          color: "#687078", background: "#E8F4FD",
-          padding: "2px 8px", borderRadius: 2 }}>
-          datasetObjectId: {datasetObjectId}
-        </span>
+
+        {/* Task ID badges — right side */}
+        <div style={{ marginLeft: "auto", display: "flex",
+          alignItems: "center", gap: 8 }}>
+
+          {/* Task ID — most important for consensus tracking */}
+          <span style={{ fontSize: 12, fontWeight: 700,
+            background: "#FEF9E7",
+            border: "1px solid #FF9900",
+            color: "#16191f",
+            padding: "3px 10px", borderRadius: 2 }}>
+            Task ID: <strong style={{ color: "#FF9900" }}>
+              {taskId}
+            </strong>
+          </span>
+
+          {/* Dataset Object ID */}
+          <span style={{ fontSize: 11, color: "#687078",
+            background: "#E8F4FD",
+            border: "1px solid #0073BB30",
+            padding: "3px 8px", borderRadius: 2 }}>
+            datasetObjectId: <strong>{datasetObjectId}</strong>
+          </span>
+
+          {/* Batch name */}
+          {batchId && task.title && (
+            <span style={{ fontSize: 11, color: "#6A1B9A",
+              background: "#F3E8FF",
+              border: "1px solid #6A1B9A30",
+              padding: "3px 8px", borderRadius: 2 }}>
+              Batch: <strong>{task.title}</strong>
+            </span>
+          )}
+
+          {/* Progress */}
+          {batchId && progress && (
+            <span style={{ fontSize: 11, color: "#1D8102",
+              background: "#d5f5e3",
+              border: "1px solid #1D810230",
+              padding: "3px 8px", borderRadius: 2 }}>
+              {progress.completed + 1}/{progress.total}
+            </span>
+          )}
+        </div>
       </div>
 
-      {/* Main Body */}
+      {/* ── Main Body ── */}
       <div style={{ display: "flex", flex: 1 }}>
 
         {/* Left - Document */}
@@ -397,25 +424,28 @@ export default function AnnotationWorkspace() {
                 </h3>
                 {HARM_CATEGORIES.map(cat => (
                   <div key={cat.key} style={{ marginBottom: 6,
-                    padding: 8, background: "#F8F8F8", borderRadius: 2 }}>
+                    padding: 8, background: "#F8F8F8",
+                    borderRadius: 2 }}>
                     <strong>{cat.label}</strong>
                   </div>
                 ))}
-                <h3 style={{ fontSize: 14, fontWeight: 700, marginTop: 16 }}>
+                <h3 style={{ fontSize: 14, fontWeight: 700,
+                  marginTop: 16 }}>
                   Intensity Scale
                 </h3>
                 {[
-                  { level: "Low", desc: "Borderline harmful (~50% people find it offensive)" },
-                  { level: "Medium", desc: "Clearly harmful, moderate impact (>90%)" },
-                  { level: "High", desc: "Clearly harmful, high impact, actionable/specific" },
+                  { level: "Low", desc: "Borderline harmful (~50%)" },
+                  { level: "Medium", desc: "Clearly harmful, moderate impact" },
+                  { level: "High", desc: "Clearly harmful, high impact" },
                 ].map(item => (
                   <div key={item.level} style={{ marginBottom: 6,
-                    padding: 8, background: "#F8F8F8", borderRadius: 2,
-                    fontSize: 12 }}>
+                    padding: 8, background: "#F8F8F8",
+                    borderRadius: 2, fontSize: 12 }}>
                     <strong>{item.level}:</strong> {item.desc}
                   </div>
                 ))}
-                <h3 style={{ fontSize: 14, fontWeight: 700, marginTop: 16 }}>
+                <h3 style={{ fontSize: 14, fontWeight: 700,
+                  marginTop: 16 }}>
                   Severity Scale
                 </h3>
                 {[
@@ -436,7 +466,7 @@ export default function AnnotationWorkspace() {
             ) : (
               <div>
 
-                {/* Step 1: Harm gate */}
+                {/* Step 1 */}
                 <div style={{ marginBottom: 16, padding: 12,
                   background: "#F8F8F8", borderRadius: 4,
                   border: "1px solid #D5DBDB" }}>
@@ -450,8 +480,9 @@ export default function AnnotationWorkspace() {
                       { label: "No harm", value: false }
                     ].map(opt => (
                       <label key={String(opt.value)}
-                        style={{ display: "flex", alignItems: "center",
-                          gap: 6, cursor: "pointer", fontSize: 13 }}>
+                        style={{ display: "flex",
+                          alignItems: "center", gap: 6,
+                          cursor: "pointer", fontSize: 13 }}>
                         <input type="radio" name="hasHarm"
                           checked={annotation.hasHarm === opt.value}
                           onChange={() => setField("hasHarm", opt.value)} />
@@ -472,7 +503,7 @@ export default function AnnotationWorkspace() {
 
                 {annotation.hasHarm === true && (
                   <>
-                    {/* Step 2: Intent */}
+                    {/* Step 2 */}
                     <div style={{ marginBottom: 16, padding: 12,
                       background: "#F8F8F8", borderRadius: 4,
                       border: "1px solid #D5DBDB" }}>
@@ -480,11 +511,10 @@ export default function AnnotationWorkspace() {
                         display: "block", marginBottom: 8 }}>
                         Step 2: Intent Evaluation *
                       </label>
-                      <select
-                        style={{ width: "100%",
-                          border: "1px solid #aab7b8", borderRadius: 2,
-                          padding: "6px 8px", fontSize: 13,
-                          marginBottom: 8 }}
+                      <select style={{ width: "100%",
+                        border: "1px solid #aab7b8",
+                        borderRadius: 2, padding: "6px 8px",
+                        fontSize: 13, marginBottom: 8 }}
                         value={annotation.intent}
                         onChange={e => setField("intent", e.target.value)}>
                         <option value="">Select intent...</option>
@@ -492,27 +522,25 @@ export default function AnnotationWorkspace() {
                           <option key={o} value={o}>{o}</option>
                         ))}
                       </select>
-
                       {annotation.intent && (
                         <>
-                          <label style={{ fontSize: 12, fontWeight: 700,
-                            display: "block", marginBottom: 4 }}>
+                          <label style={{ fontSize: 12,
+                            fontWeight: 700, display: "block",
+                            marginBottom: 4 }}>
                             Provide rationale *
                           </label>
-                          <textarea
-                            style={{ width: "100%",
-                              border: "1px solid #aab7b8",
-                              borderRadius: 2, padding: "6px 8px",
-                              fontSize: 12, resize: "vertical",
-                              height: 60 }}
+                          <textarea style={{ width: "100%",
+                            border: "1px solid #aab7b8",
+                            borderRadius: 2, padding: "6px 8px",
+                            fontSize: 12, resize: "vertical",
+                            height: 60 }}
                             placeholder="Explain why you chose this intent..."
                             value={annotation.intentRationale}
                             onChange={e =>
                               setField("intentRationale", e.target.value)} />
-
-                          <label style={{ fontSize: 12, fontWeight: 700,
-                            display: "block", marginBottom: 4,
-                            marginTop: 8 }}>
+                          <label style={{ fontSize: 12,
+                            fontWeight: 700, display: "block",
+                            marginBottom: 4, marginTop: 8 }}>
                             Intent Confidence Level *
                           </label>
                           {CONFIDENCE_OPTIONS.map(opt => (
@@ -523,7 +551,9 @@ export default function AnnotationWorkspace() {
                                 marginBottom: 4 }}>
                               <input type="radio"
                                 name="intentConfidence"
-                                checked={annotation.intentConfidenceLevel === opt}
+                                checked={
+                                  annotation.intentConfidenceLevel === opt
+                                }
                                 onChange={() =>
                                   setField("intentConfidenceLevel", opt)} />
                               {opt}
@@ -533,7 +563,7 @@ export default function AnnotationWorkspace() {
                       )}
                     </div>
 
-                    {/* Step 3: Categories */}
+                    {/* Step 3 */}
                     <div style={{ marginBottom: 16, padding: 12,
                       background: "#F8F8F8", borderRadius: 4,
                       border: "1px solid #D5DBDB" }}>
@@ -541,8 +571,8 @@ export default function AnnotationWorkspace() {
                         display: "block", marginBottom: 8 }}>
                         Step 3: Select Harm Categories *
                       </label>
-                      <div style={{ display: "flex", flexWrap: "wrap",
-                        gap: 6, marginBottom: 12 }}>
+                      <div style={{ display: "flex",
+                        flexWrap: "wrap", gap: 6, marginBottom: 12 }}>
                         {HARM_CATEGORIES.map(cat => (
                           <button key={cat.key}
                             onClick={() => toggleCategory(cat.key)}
@@ -550,8 +580,7 @@ export default function AnnotationWorkspace() {
                               borderRadius: 2, fontSize: 12,
                               cursor: "pointer", fontWeight: 600,
                               background: annotation.selectedCategories
-                                .includes(cat.key)
-                                ? "#FF9900" : "white",
+                                .includes(cat.key) ? "#FF9900" : "white",
                               border: annotation.selectedCategories
                                 .includes(cat.key)
                                 ? "1px solid #EC7211"
@@ -563,28 +592,30 @@ export default function AnnotationWorkspace() {
                         ))}
                       </div>
 
-                      {/* Per-category fields */}
                       {annotation.selectedCategories.map(catKey => {
-                        const cat = HARM_CATEGORIES.find(c => c.key === catKey);
+                        const cat = HARM_CATEGORIES.find(
+                          c => c.key === catKey
+                        );
                         const data = annotation.categoryData[catKey] || {};
                         return (
                           <div key={catKey} style={{ marginBottom: 12,
                             padding: 10, background: "white",
                             borderRadius: 2,
                             border: "1px solid #FF9900" }}>
-                            <div style={{ fontWeight: 700, fontSize: 13,
-                              color: "#FF9900", marginBottom: 8 }}>
+                            <div style={{ fontWeight: 700,
+                              fontSize: 13, color: "#FF9900",
+                              marginBottom: 8 }}>
                               {cat?.label}
                             </div>
-
-                            <label style={{ fontSize: 11, fontWeight: 700,
-                              display: "block", marginBottom: 4 }}>
+                            <label style={{ fontSize: 11,
+                              fontWeight: 700, display: "block",
+                              marginBottom: 4 }}>
                               Intensity *
                             </label>
                             <select style={{ width: "100%",
-                              border: "1px solid #aab7b8", borderRadius: 2,
-                              padding: "4px 6px", fontSize: 12,
-                              marginBottom: 8 }}
+                              border: "1px solid #aab7b8",
+                              borderRadius: 2, padding: "4px 6px",
+                              fontSize: 12, marginBottom: 8 }}
                               value={data.intensity || "None"}
                               onChange={e => updateCategoryData(
                                 catKey, "intensity", e.target.value)}>
@@ -592,9 +623,9 @@ export default function AnnotationWorkspace() {
                                 <option key={o} value={o}>{o}</option>
                               ))}
                             </select>
-
-                            <label style={{ fontSize: 11, fontWeight: 700,
-                              display: "block", marginBottom: 4 }}>
+                            <label style={{ fontSize: 11,
+                              fontWeight: 700, display: "block",
+                              marginBottom: 4 }}>
                               Severity (0-5) *
                             </label>
                             <div style={{ display: "flex",
@@ -614,9 +645,9 @@ export default function AnnotationWorkspace() {
                                 </label>
                               ))}
                             </div>
-
-                            <label style={{ fontSize: 11, fontWeight: 700,
-                              display: "block", marginBottom: 4 }}>
+                            <label style={{ fontSize: 11,
+                              fontWeight: 700, display: "block",
+                              marginBottom: 4 }}>
                               Confidence Level *
                             </label>
                             {CONFIDENCE_OPTIONS.map(opt => (
@@ -647,11 +678,10 @@ export default function AnnotationWorkspace() {
                       display: "block", marginBottom: 4 }}>
                       Overall Comments (optional)
                     </label>
-                    <textarea
-                      style={{ width: "100%",
-                        border: "1px solid #aab7b8", borderRadius: 2,
-                        padding: "8px 10px", fontSize: 12,
-                        resize: "vertical", height: 60 }}
+                    <textarea style={{ width: "100%",
+                      border: "1px solid #aab7b8", borderRadius: 2,
+                      padding: "8px 10px", fontSize: 12,
+                      resize: "vertical", height: 60 }}
                       placeholder="Add any additional notes..."
                       value={annotation.overallComments}
                       onChange={e =>
@@ -659,7 +689,7 @@ export default function AnnotationWorkspace() {
                   </div>
                 )}
 
-                {/* Submit Button */}
+                {/* Submit */}
                 {annotation.hasHarm !== null && (
                   <button onClick={handleSubmit}
                     disabled={submitting}
