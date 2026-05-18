@@ -4,8 +4,10 @@ import API from "../../api/client";
 
 export default function QueueDashboard() {
   const [batches, setBatches] = useState([]);
+  const [selected, setSelected] = useState(null);
   const [loading, setLoading] = useState(true);
   const [notification, setNotification] = useState(null);
+  const [showInstructions, setShowInstructions] = useState(false);
   const wsRef = useRef(null);
   const username = localStorage.getItem("username");
   const userId = parseInt(localStorage.getItem("user_id") || "0");
@@ -39,30 +41,35 @@ export default function QueueDashboard() {
   const fetchBatches = async () => {
     setLoading(true);
     try {
-      // Get batches assigned to this user with their progress
-      const res = await API.get(`/batches/user-batches`);
+      const res = await API.get("/batches/user-batches");
       setBatches(res.data);
     } catch {}
     setLoading(false);
   };
 
-  const handleStartBatch = async (batch) => {
+  const handleStartWorking = async () => {
+    if (!selected) return;
+    const batch = batches.find(b => b.id === selected);
+    if (!batch) return;
+
+    if (batch.completed >= batch.total && batch.total > 0) {
+      alert("🎉 You have completed all tasks in this batch!");
+      return;
+    }
+
     try {
-      // Get first pending task for this user in this batch
       const res = await API.get(`/batches/next-task/${batch.id}`);
       if (res.data.completed) {
-        alert("🎉 You have completed all tasks in this batch!");
+        alert("🎉 All tasks in this batch are completed!");
+        fetchBatches();
         return;
       }
       const { task_id, dataset_object_id } = res.data;
-      // Clear old timer
       localStorage.removeItem(`timer_${task_id}`);
       localStorage.removeItem(`timer_${task_id}_savedAt`);
-      // Claim the task
       await API.post(`/tasks/${task_id}/claim`);
-      // Navigate to annotation workspace
       navigate(
-        `/annotate/${task_id}?batch_id=${batch.id}&dataset_object_id=${dataset_object_id}`
+        `/annotate/${task_id}?batch_id=${batch.id}&dataset_object_id=${dataset_object_id || 0}`
       );
     } catch (err) {
       alert(err.response?.data?.detail || "Could not start batch.");
@@ -75,240 +82,303 @@ export default function QueueDashboard() {
     navigate("/login");
   };
 
-  const getStatusColor = (status) => {
-    if (status === "completed") return { bg: "#d5f5e3", color: "#1D8102" };
-    if (status === "in_progress") return { bg: "#E8F4FD", color: "#0073BB" };
-    if (status === "paused") return { bg: "#FEF9E7", color: "#996300" };
-    return { bg: "#eaeded", color: "#687078" };
+  const selectedBatch = batches.find(b => b.id === selected);
+  const isComplete = selectedBatch &&
+    selectedBatch.completed >= selectedBatch.total &&
+    selectedBatch.total > 0;
+
+  const getStatusBadge = (batch) => {
+    const pct = batch.total > 0
+      ? Math.round((batch.completed / batch.total) * 100) : 0;
+    if (batch.completed >= batch.total && batch.total > 0) {
+      return (
+        <span style={{ background: "#d5f5e3", color: "#1D8102",
+          padding: "2px 10px", borderRadius: 2,
+          fontSize: 13, fontWeight: 600 }}>
+          Completed
+        </span>
+      );
+    }
+    if (batch.in_progress > 0 || batch.completed > 0) {
+      return (
+        <span style={{ background: "#E8F4FD", color: "#0073BB",
+          padding: "2px 10px", borderRadius: 2,
+          fontSize: 13, fontWeight: 600 }}>
+          In Progress ({pct}%)
+        </span>
+      );
+    }
+    return (
+      <span style={{ background: "#eaeded", color: "#687078",
+        padding: "2px 10px", borderRadius: 2,
+        fontSize: 13, fontWeight: 600 }}>
+        Available
+      </span>
+    );
   };
 
   return (
-    <div style={{ minHeight: "100vh", background: "#F2F3F3",
+    <div style={{ minHeight: "100vh", background: "#f5f5f5",
       display: "flex", flexDirection: "column" }}>
 
-      {/* Top Nav */}
-      <div style={{ background: "#232F3E", padding: "6px 20px",
-        color: "white", display: "flex", alignItems: "center",
-        justifyContent: "space-between", fontSize: 13 }}>
-        <span style={{ fontWeight: 700 }}>🏷️ AnnotateHub</span>
-        <div style={{ display: "flex", alignItems: "center", gap: 16 }}>
-          <span>Hello, <strong>{username}</strong></span>
-          <button onClick={handleLogout}
-            style={{ background: "transparent",
-              border: "1px solid #aab7b8", color: "white",
-              padding: "4px 12px", borderRadius: 2,
-              fontSize: 12, cursor: "pointer" }}>
-            Log out
-          </button>
-        </div>
+      {/* Top Nav — matches production interface */}
+      <div style={{ background: "white",
+        borderBottom: "1px solid #e0e0e0",
+        padding: "8px 24px", display: "flex",
+        alignItems: "center", justifyContent: "space-between",
+        fontSize: 13 }}>
+        <span style={{ fontWeight: 600, color: "#16191f" }}>
+          Hello, <strong>{username}</strong>
+        </span>
+        <button onClick={handleLogout}
+          style={{ background: "white", border: "1px solid #aab7b8",
+            color: "#16191f", padding: "5px 16px", borderRadius: 4,
+            fontSize: 13, cursor: "pointer" }}>
+          Log out
+        </button>
       </div>
 
-      <div style={{ maxWidth: 900, margin: "32px auto",
-        width: "100%", padding: "0 24px" }}>
+      <div style={{ maxWidth: 1100, margin: "0 auto",
+        width: "100%", padding: "24px" }}>
 
         {/* Notification */}
         {notification && (
-          <div style={{ background: "#F0F8FF",
-            border: "1px solid #0073BB",
-            borderLeft: "4px solid #0073BB", borderRadius: 2,
+          <div style={{ background: "#e8f4fd",
+            border: "1px solid #0073BB", borderRadius: 4,
             padding: "10px 16px", marginBottom: 16, fontSize: 13 }}>
             ℹ️ {notification}
           </div>
         )}
 
-        {/* Header */}
-        <div style={{ display: "flex", justifyContent: "space-between",
-          alignItems: "center", marginBottom: 24 }}>
-          <div>
-            <h1 style={{ fontSize: 22, fontWeight: 700,
-              color: "#16191f", margin: 0 }}>
-              My Annotation Queue
-            </h1>
-            <p style={{ fontSize: 13, color: "#687078", margin: "4px 0 0" }}>
-              Select a batch to start annotating tasks
-            </p>
-          </div>
-          <button onClick={fetchBatches}
-            style={{ background: "white", border: "1px solid #D5DBDB",
-              padding: "8px 16px", borderRadius: 2,
-              fontSize: 13, cursor: "pointer" }}>
-            🔄 Refresh
-          </button>
-        </div>
+        {/* Main Queue Card */}
+        <div style={{ background: "white", borderRadius: 8,
+          border: "1px solid #e0e0e0",
+          boxShadow: "0 1px 4px rgba(0,0,0,0.06)" }}>
 
-        {loading ? (
-          <div style={{ textAlign: "center", padding: 60,
-            color: "#687078" }}>
-            <div style={{ fontSize: 32, marginBottom: 12 }}>⏳</div>
-            <p>Loading your batches...</p>
-          </div>
-        ) : batches.length === 0 ? (
-          <div style={{ background: "white",
-            border: "1px solid #D5DBDB", borderRadius: 4,
-            padding: 60, textAlign: "center" }}>
-            <div style={{ fontSize: 48, marginBottom: 16 }}>📭</div>
+          {/* Card Header */}
+          <div style={{ padding: "16px 24px",
+            borderBottom: "1px solid #e0e0e0",
+            display: "flex", justifyContent: "space-between",
+            alignItems: "center" }}>
             <h2 style={{ fontSize: 18, fontWeight: 700,
-              color: "#16191f", margin: "0 0 8px" }}>
-              No batches assigned yet
+              color: "#16191f", margin: 0 }}>
+              Jobs ({batches.length})
             </h2>
-            <p style={{ fontSize: 13, color: "#687078" }}>
-              Your admin will assign annotation batches to you.
-              Check back later or click Refresh.
-            </p>
-          </div>
-        ) : (
-          <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
-            {batches.map(batch => {
-              const pct = batch.total > 0
-                ? Math.round((batch.completed / batch.total) * 100)
-                : 0;
-              const isComplete = batch.completed >= batch.total && batch.total > 0;
-              const hasInProgress = batch.in_progress > 0;
+            <div style={{ display: "flex",
+              alignItems: "center", gap: 16 }}>
+              {/* Show instructions toggle */}
+              <label style={{ display: "flex", alignItems: "center",
+                gap: 8, fontSize: 13, cursor: "pointer",
+                color: "#16191f" }}>
+                <div onClick={() => setShowInstructions(!showInstructions)}
+                  style={{ width: 36, height: 20, borderRadius: 10,
+                    background: showInstructions ? "#0073BB" : "#aab7b8",
+                    position: "relative", cursor: "pointer",
+                    transition: "background 0.2s" }}>
+                  <div style={{ width: 16, height: 16, borderRadius: "50%",
+                    background: "white", position: "absolute",
+                    top: 2, transition: "left 0.2s",
+                    left: showInstructions ? 18 : 2 }} />
+                </div>
+                Show instructions
+              </label>
 
-              return (
-                <div key={batch.id}
-                  style={{ background: "white",
+              {/* Start working button */}
+              {selected && !isComplete ? (
+                <button onClick={handleStartWorking}
+                  style={{ background: "#FF9900",
+                    border: "1px solid #EC7211",
+                    color: "black", padding: "7px 20px",
+                    borderRadius: 4, fontSize: 13,
+                    fontWeight: 700, cursor: "pointer" }}>
+                  Start working
+                </button>
+              ) : selected && isComplete ? (
+                <button disabled
+                  style={{ background: "#d5f5e3",
+                    border: "1px solid #1D8102",
+                    color: "#1D8102", padding: "7px 20px",
+                    borderRadius: 4, fontSize: 13,
+                    fontWeight: 700, cursor: "not-allowed" }}>
+                  ✅ Completed
+                </button>
+              ) : (
+                <button disabled
+                  style={{ background: "#f5f5f5",
                     border: "1px solid #D5DBDB",
-                    borderRadius: 4, overflow: "hidden",
-                    boxShadow: "0 1px 4px rgba(0,0,0,0.06)" }}>
+                    color: "#aab7b8", padding: "7px 20px",
+                    borderRadius: 4, fontSize: 13,
+                    cursor: "not-allowed" }}>
+                  Start working
+                </button>
+              )}
+            </div>
+          </div>
 
-                  {/* Batch Header */}
-                  <div style={{ padding: "16px 20px",
-                    borderBottom: "1px solid #eaeded",
-                    display: "flex", justifyContent: "space-between",
-                    alignItems: "center",
-                    background: isComplete ? "#FAFFF9" : "white" }}>
-                    <div style={{ display: "flex",
-                      alignItems: "center", gap: 12 }}>
-                      <div style={{ width: 40, height: 40,
-                        borderRadius: "50%",
-                        background: isComplete ? "#d5f5e3" : "#E8F4FD",
-                        display: "flex", alignItems: "center",
-                        justifyContent: "center", fontSize: 18 }}>
-                        {isComplete ? "✅" : hasInProgress ? "▶️" : "📋"}
-                      </div>
-                      <div>
-                        <div style={{ fontWeight: 700, fontSize: 15,
-                          color: "#16191f" }}>
+          {/* Pagination row */}
+          <div style={{ padding: "8px 24px",
+            borderBottom: "1px solid #e0e0e0",
+            display: "flex", justifyContent: "flex-end",
+            alignItems: "center", gap: 8 }}>
+            <button style={{ background: "none", border: "none",
+              color: "#aab7b8", cursor: "pointer",
+              fontSize: 16, padding: "0 4px" }}>‹</button>
+            <span style={{ fontSize: 13, color: "#16191f" }}>1</span>
+            <button style={{ background: "none", border: "none",
+              color: "#aab7b8", cursor: "pointer",
+              fontSize: 16, padding: "0 4px" }}>›</button>
+          </div>
+
+          {/* Table */}
+          <table style={{ width: "100%", borderCollapse: "collapse" }}>
+            <thead>
+              <tr style={{ borderBottom: "2px solid #e0e0e0" }}>
+                <th style={{ width: 50, padding: "10px 16px" }}></th>
+                <th style={{ padding: "10px 16px", textAlign: "left",
+                  fontSize: 13, fontWeight: 700, color: "#16191f" }}>
+                  Task title ▽
+                </th>
+                <th style={{ padding: "10px 16px", textAlign: "left",
+                  fontSize: 13, fontWeight: 700, color: "#16191f" }}>
+                  Customer ID ▽
+                </th>
+                <th style={{ padding: "10px 16px", textAlign: "left",
+                  fontSize: 13, fontWeight: 700, color: "#16191f" }}>
+                  Status ▽
+                </th>
+                <th style={{ padding: "10px 16px", textAlign: "left",
+                  fontSize: 13, fontWeight: 700, color: "#16191f" }}>
+                  Creation time ▽
+                </th>
+              </tr>
+            </thead>
+            <tbody>
+              {loading ? (
+                <tr>
+                  <td colSpan="5" style={{ textAlign: "center",
+                    padding: 48, color: "#687078" }}>
+                    Loading...
+                  </td>
+                </tr>
+              ) : batches.length === 0 ? (
+                <tr>
+                  <td colSpan="5" style={{ textAlign: "center",
+                    padding: 48, color: "#687078" }}>
+                    <div style={{ fontSize: 32, marginBottom: 12 }}>📭</div>
+                    <p style={{ fontWeight: 600 }}>No batches assigned yet</p>
+                    <p style={{ fontSize: 12 }}>
+                      Your admin will assign annotation batches to you.
+                    </p>
+                  </td>
+                </tr>
+              ) : (
+                batches.map(batch => {
+                  const isSelected = selected === batch.id;
+                  const pct = batch.total > 0
+                    ? Math.round((batch.completed / batch.total) * 100)
+                    : 0;
+
+                  return (
+                    <tr key={batch.id}
+                      onClick={() => setSelected(batch.id)}
+                      style={{ cursor: "pointer",
+                        borderBottom: "1px solid #f0f0f0",
+                        background: isSelected ? "#e8f4fd" : "white",
+                        borderLeft: isSelected
+                          ? "3px solid #0073BB"
+                          : "3px solid transparent" }}>
+
+                      {/* Radio */}
+                      <td style={{ padding: "14px 16px",
+                        textAlign: "center" }}>
+                        <div style={{ width: 18, height: 18,
+                          borderRadius: "50%",
+                          border: isSelected
+                            ? "5px solid #0073BB"
+                            : "2px solid #aab7b8",
+                          background: "white",
+                          margin: "0 auto" }} />
+                      </td>
+
+                      {/* Batch name as task title */}
+                      <td style={{ padding: "14px 16px" }}>
+                        <div style={{ fontWeight: 600, fontSize: 14,
+                          color: "#0073BB" }}>
                           {batch.name}
                         </div>
-                        <div style={{ fontSize: 12, color: "#687078",
-                          marginTop: 2 }}>
-                          {batch.project_name} •{" "}
-                          {batch.total} tasks •{" "}
-                          {batch.required_annotators || 3} annotators per task
-                        </div>
-                      </div>
-                    </div>
+                        {showInstructions && (
+                          <div style={{ fontSize: 11,
+                            color: "#687078", marginTop: 4 }}>
+                            {batch.total} tasks •{" "}
+                            {batch.completed} completed •{" "}
+                            {batch.remaining} remaining
+                          </div>
+                        )}
+                        {/* Mini progress bar */}
+                        {batch.total > 0 && (
+                          <div style={{ marginTop: 6,
+                            background: "#e0e0e0",
+                            borderRadius: 2, height: 3,
+                            width: 200 }}>
+                            <div style={{
+                              width: `${pct}%`,
+                              background: pct === 100
+                                ? "#1D8102" : "#FF9900",
+                              borderRadius: 2, height: 3,
+                              transition: "width 0.3s"
+                            }} />
+                          </div>
+                        )}
+                      </td>
 
-                    <div style={{ display: "flex",
-                      alignItems: "center", gap: 16 }}>
-                      {/* Stats */}
-                      <div style={{ textAlign: "right", fontSize: 12 }}>
-                        <div style={{ fontWeight: 700, fontSize: 16,
-                          color: isComplete ? "#1D8102" : "#0073BB" }}>
-                          {batch.completed}/{batch.total}
-                        </div>
-                        <div style={{ color: "#687078" }}>completed</div>
-                      </div>
+                      {/* Customer ID */}
+                      <td style={{ padding: "14px 16px",
+                        fontSize: 13, color: "#16191f" }}>
+                        977099032732
+                      </td>
 
-                      {/* Action Button */}
-                      {isComplete ? (
-                        <div style={{ background: "#d5f5e3",
-                          color: "#1D8102", padding: "8px 20px",
-                          borderRadius: 2, fontSize: 13,
-                          fontWeight: 700 }}>
-                          ✅ Complete
-                        </div>
-                      ) : (
-                        <button onClick={() => handleStartBatch(batch)}
-                          style={{ background: "#FF9900",
-                            border: "1px solid #EC7211",
-                            color: "black", padding: "8px 20px",
-                            borderRadius: 2, fontSize: 13,
-                            fontWeight: 700, cursor: "pointer",
-                            whiteSpace: "nowrap" }}>
-                          {hasInProgress ? "▶ Continue" : "▶ Start working"}
-                        </button>
-                      )}
-                    </div>
-                  </div>
+                      {/* Status */}
+                      <td style={{ padding: "14px 16px" }}>
+                        {getStatusBadge(batch)}
+                      </td>
 
-                  {/* Progress Bar */}
-                  <div style={{ padding: "12px 20px",
-                    background: "#FAFAFA" }}>
-                    <div style={{ display: "flex",
-                      justifyContent: "space-between",
-                      alignItems: "center", marginBottom: 6 }}>
-                      <span style={{ fontSize: 12, color: "#687078" }}>
-                        Progress
-                      </span>
-                      <span style={{ fontSize: 12, fontWeight: 700,
-                        color: isComplete ? "#1D8102" : "#0073BB" }}>
-                        {pct}%
-                      </span>
-                    </div>
-                    <div style={{ background: "#D5DBDB",
-                      borderRadius: 4, height: 8 }}>
-                      <div style={{
-                        width: `${pct}%`,
-                        background: isComplete ? "#1D8102" : "#FF9900",
-                        borderRadius: 4, height: 8,
-                        transition: "width 0.3s"
-                      }} />
-                    </div>
+                      {/* Creation time */}
+                      <td style={{ padding: "14px 16px",
+                        fontSize: 13, color: "#687078" }}>
+                        {new Date(batch.created_at ||
+                          Date.now()).toLocaleDateString("en-US", {
+                          month: "short", day: "numeric",
+                          year: "numeric",
+                          hour: "2-digit", minute: "2-digit"
+                        })} UTC
+                      </td>
+                    </tr>
+                  );
+                })
+              )}
+            </tbody>
+          </table>
 
-                    {/* Task pills */}
-                    <div style={{ display: "flex", gap: 6,
-                      marginTop: 10, flexWrap: "wrap" }}>
-                      {batch.task_statuses?.map((t, i) => (
-                        <div key={i} title={t.title}
-                          style={{ width: 28, height: 28,
-                            borderRadius: "50%", fontSize: 11,
-                            display: "flex", alignItems: "center",
-                            justifyContent: "center", fontWeight: 700,
-                            cursor: "default",
-                            background:
-                              t.status === "completed" ? "#1D8102" :
-                              t.status === "in_progress" ? "#0073BB" :
-                              "#D5DBDB",
-                            color:
-                              t.status === "completed" ||
-                              t.status === "in_progress"
-                                ? "white" : "#687078" }}>
-                          {i + 1}
-                        </div>
-                      ))}
-                    </div>
-
-                    {/* Bottom info row */}
-                    <div style={{ display: "flex", gap: 16,
-                      marginTop: 10, fontSize: 11 }}>
-                      <span style={{ color: "#687078" }}>
-                        ⏱ {Math.floor((batch.time_limit || 1800) / 60)} min/task
-                      </span>
-                      {batch.remaining > 0 && (
-                        <span style={{ color: "#687078" }}>
-                          📝 {batch.remaining} task{batch.remaining !== 1 ? "s" : ""} remaining
-                        </span>
-                      )}
-                      {hasInProgress && (
-                        <span style={{ color: "#0073BB", fontWeight: 600 }}>
-                          ▶ 1 task in progress
-                        </span>
-                      )}
-                      {isComplete && (
-                        <span style={{ color: "#1D8102", fontWeight: 600 }}>
-                          🎉 All tasks completed!
-                        </span>
-                      )}
-                    </div>
-                  </div>
-                </div>
-              );
-            })}
+          {/* Bottom pagination */}
+          <div style={{ padding: "10px 24px",
+            borderTop: "1px solid #e0e0e0",
+            display: "flex", justifyContent: "flex-end",
+            alignItems: "center", gap: 8 }}>
+            <button style={{ background: "none", border: "none",
+              color: "#aab7b8", cursor: "pointer",
+              fontSize: 16, padding: "0 4px" }}>‹</button>
+            <span style={{ fontSize: 13 }}>1</span>
+            <button style={{ background: "none", border: "none",
+              color: "#aab7b8", cursor: "pointer",
+              fontSize: 16, padding: "0 4px" }}>›</button>
           </div>
-        )}
+        </div>
+
+        {/* Bottom hint */}
+        <p style={{ fontSize: 12, color: "#aab7b8",
+          textAlign: "center", marginTop: 16 }}>
+          Select a batch and click "Start working" to begin annotating tasks
+        </p>
       </div>
     </div>
   );
