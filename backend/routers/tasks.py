@@ -154,54 +154,152 @@ async def get_queue(
 ):
     from models import QueueBatch
 
-    # Get paused AND in_progress tasks for current user
-    paused_rows = db.execute(text(
-        "SELECT id, title, project_id, customer_id, data_content, "
-        "instructions, status, assigned_to, created_at "
-        f"FROM tasks WHERE status IN ('paused', 'in_progress') "
-        f"AND assigned_to = {current_user.id}"
-    )).fetchall()
+    # ── 1. Consensus batch tasks (from task_assignments) ──
+    # Show tasks assigned to this user in any active batch
+    # regardless of global task status — each user works independently
+    consensus_rows = db.execute(text(f"""
+        SELECT DISTINCT
+            t.id, t.title, t.project_id, t.customer_id,
+            t.data_content, t.instructions, t.status,
+            t.assigned_to, t.created_at,
+            ta.status as assignment_status,
+            bts.dataset_object_id,
+            qb.time_limit, qb.name as batch_name,
+            ta.batch_id
+        FROM task_assignments ta
+        JOIN tasks t ON t.id = ta.task_id
+        JOIN batch_task_sequences bts
+            ON bts.task_id = ta.task_id
+            AND bts.batch_id = ta.batch_id
+        JOIN queue_batches qb ON qb.id = ta.batch_id
+        WHERE ta.user_id = {current_user.id}
+        AND ta.status = 'pending'
+        AND qb.status = 'active'
+        ORDER BY bts.dataset_object_id ASC
+    """)).fetchall()
 
-    # Get active batches
+    # ── 2. Non-batch paused/in_progress tasks for this user ──
+    personal_rows = db.execute(text(f"""
+        SELECT
+            t.id, t.title, t.project_id, t.customer_id,
+            t.data_content, t.instructions, t.status,
+            t.assigned_to, t.created_at,
+            t.status as assignment_status,
+            t.dataset_object_id,
+            1800 as time_limit, NULL as batch_name,
+            NULL as batch_id
+        FROM tasks t
+        WHERE t.status IN ('paused', 'in_progress')
+        AND t.assigned_to = {current_user.id}
+        AND t.id NOT IN (
+            SELECT task_id FROM task_assignments
+            WHERE user_id = {current_user.id}
+        )
+    """)).fetchall()
+
+    # ── 3. Regular available tasks (no batch assignment) ──
     active_batches = db.query(QueueBatch).filter(
         QueueBatch.status == "active"
     ).all()
 
-    if not active_batches:
-        available_rows = db.execute(text(
-            "SELECT id, title, project_id, customer_id, data_content, "
-            "instructions, status, assigned_to, created_at "
-            "FROM tasks WHERE status = 'available'"
-        )).fetchall()
-        batch_map = {}
-    else:
+    # Get task IDs already in consensus assignments for this user
+    assigned_task_ids = [row[0] for row in consensus_rows]
+
+    if active_batches:
         project_ids = ",".join(str(b.project_id) for b in active_batches)
-        available_rows = db.execute(text(
-            "SELECT id, title, project_id, customer_id, data_content, "
-            "instructions, status, assigned_to, created_at "
-            f"FROM tasks WHERE status = 'available' AND project_id IN ({project_ids})"
-        )).fetchall()
         batch_map = {b.project_id: b for b in active_batches}
+        exclude_clause = (
+            f"AND t.id NOT IN ({','.join(str(x) for x in assigned_task_ids)})"
+            if assigned_task_ids else ""
+        )
+        free_rows = db.execute(text(f"""
+            SELECT
+                t.id, t.title, t.project_id, t.customer_id,
+                t.data_content, t.instructions, t.status,
+                t.assigned_to, t.created_at,
+                t.status as assignment_status,
+                t.dataset_object_id,
+                1800 as time_limit, NULL as batch_name,
+                NULL as batch_id
+            FROM tasks t
+            WHERE t.status = 'available'
+            AND t.project_id IN ({project_ids})
+            {exclude_clause}
+        """)).fetchall()
+    else:
+        batch_map = {}
+        free_rows = []
 
     result = []
-    for row in list(paused_rows) + list(available_rows):
-        batch = batch_map.get(row[2])
-        result.append({
-            "id": row[0],
-            "title": row[1],
-            "project_id": row[2],
-            "customer_id": row[3],
-            "data_content": row[4],
-            "instructions": row[5],
-            "status": row[6],
-            "assigned_to": row[7],
-            "created_at": row[8],
-            "time_limit": batch.time_limit if batch else 1800,
-            "batch_name": batch.name if batch else None
-        })
+    seen_ids = set()
+
+    # Add consensus tasks first (in sequence order)
+    for row in consensus_rows:
+        if row[0] not in seen_ids:
+            seen_ids.add(row[0])
+            result.append({
+                "id": row[0],
+                "title": row[1],
+                "project_id": row[2],
+                "customer_id": row[3],
+                "data_content": row[4],
+                "instructions": row[5],
+                "status": row[6],
+                "assigned_to": row[7],
+                "created_at": row[8],
+                "assignment_status": row[9],
+                "dataset_object_id": row[10],
+                "time_limit": row[11],
+                "batch_name": row[12],
+                "batch_id": row[13]
+            })
+
+    # Add personal paused/in_progress
+    for row in personal_rows:
+        if row[0] not in seen_ids:
+            seen_ids.add(row[0])
+            result.append({
+                "id": row[0],
+                "title": row[1],
+                "project_id": row[2],
+                "customer_id": row[3],
+                "data_content": row[4],
+                "instructions": row[5],
+                "status": row[6],
+                "assigned_to": row[7],
+                "created_at": row[8],
+                "assignment_status": row[9],
+                "dataset_object_id": row[10],
+                "time_limit": row[11],
+                "batch_name": row[12],
+                "batch_id": row[13]
+            })
+
+    # Add free available tasks
+    for row in free_rows:
+        if row[0] not in seen_ids:
+            seen_ids.add(row[0])
+            batch = batch_map.get(row[2])
+            result.append({
+                "id": row[0],
+                "title": row[1],
+                "project_id": row[2],
+                "customer_id": row[3],
+                "data_content": row[4],
+                "instructions": row[5],
+                "status": row[6],
+                "assigned_to": row[7],
+                "created_at": row[8],
+                "assignment_status": row[9],
+                "dataset_object_id": row[10],
+                "time_limit": batch.time_limit if batch else 1800,
+                "batch_name": batch.name if batch else None,
+                "batch_id": None
+            })
 
     if search:
-        result = [r for r in result if search.lower() in r["title"].lower()]
+        result = [r for r in result
+                  if search.lower() in r["title"].lower()]
 
     return result
 
@@ -226,7 +324,38 @@ async def claim_task(
     if not task:
         raise HTTPException(404, "Task not found")
 
-    if task.status == TaskStatus.paused and task.assigned_to == current_user.id:
+    # Check if this is a consensus batch task
+    assignment = db.execute(text(
+        f"SELECT id, status FROM task_assignments "
+        f"WHERE task_id = {task_id} "
+        f"AND user_id = {current_user.id}"
+    )).fetchone()
+
+    if assignment:
+        # Consensus task — only update this user's assignment
+        # Do NOT change global task status so other annotators
+        # can still see and claim it independently
+        if assignment[1] == "completed":
+            return {"message": "Already completed", "task_id": task.id}
+        db.execute(text(
+            f"UPDATE task_assignments "
+            f"SET status = 'in_progress' "
+            f"WHERE task_id = {task_id} "
+            f"AND user_id = {current_user.id}"
+        ))
+        log = TaskActivityLog(
+            task_id=task_id,
+            user_id=current_user.id,
+            action="claimed",
+            detail=f"Consensus task claimed by {current_user.username}"
+        )
+        db.add(log)
+        db.commit()
+        return {"message": "Task claimed", "task_id": task.id}
+
+    # Regular (non-consensus) task logic
+    if task.status == TaskStatus.paused and \
+       task.assigned_to == current_user.id:
         task.status = TaskStatus.in_progress
         log = TaskActivityLog(
             task_id=task_id,
@@ -238,7 +367,8 @@ async def claim_task(
         db.commit()
         return {"message": "Task resumed", "task_id": task.id}
 
-    if task.status == TaskStatus.in_progress and task.assigned_to == current_user.id:
+    if task.status == TaskStatus.in_progress and \
+       task.assigned_to == current_user.id:
         return {"message": "Task already in progress", "task_id": task.id}
 
     if task.status != TaskStatus.available:
@@ -266,7 +396,23 @@ async def pause_task(
     task = db.query(Task).filter(Task.id == task_id).first()
     if not task:
         raise HTTPException(404, "Task not found")
-    task.status = TaskStatus.paused
+
+    # For consensus tasks just update assignment status
+    assignment = db.execute(text(
+        f"SELECT id FROM task_assignments "
+        f"WHERE task_id = {task_id} "
+        f"AND user_id = {current_user.id}"
+    )).fetchone()
+
+    if assignment:
+        db.execute(text(
+            f"UPDATE task_assignments SET status = 'pending' "
+            f"WHERE task_id = {task_id} "
+            f"AND user_id = {current_user.id}"
+        ))
+    else:
+        task.status = TaskStatus.paused
+
     log = TaskActivityLog(
         task_id=task_id,
         user_id=current_user.id,
@@ -286,8 +432,24 @@ async def decline_task(
     task = db.query(Task).filter(Task.id == task_id).first()
     if not task:
         raise HTTPException(404, "Task not found")
-    task.status = TaskStatus.available
-    task.assigned_to = None
+
+    # For consensus tasks reset assignment to pending
+    assignment = db.execute(text(
+        f"SELECT id FROM task_assignments "
+        f"WHERE task_id = {task_id} "
+        f"AND user_id = {current_user.id}"
+    )).fetchone()
+
+    if assignment:
+        db.execute(text(
+            f"UPDATE task_assignments SET status = 'pending' "
+            f"WHERE task_id = {task_id} "
+            f"AND user_id = {current_user.id}"
+        ))
+    else:
+        task.status = TaskStatus.available
+        task.assigned_to = None
+
     log = TaskActivityLog(
         task_id=task_id,
         user_id=current_user.id,
@@ -307,8 +469,25 @@ async def release_task(
     task = db.query(Task).filter(Task.id == task_id).first()
     if not task:
         raise HTTPException(404, "Task not found")
-    task.status = TaskStatus.available
-    task.assigned_to = None
+
+    # For consensus tasks reset assignment to pending
+    assignment = db.execute(text(
+        f"SELECT id FROM task_assignments "
+        f"WHERE task_id = {task_id} "
+        f"AND user_id = {current_user.id}"
+    )).fetchone()
+
+    if assignment:
+        db.execute(text(
+            f"UPDATE task_assignments SET status = 'pending' "
+            f"WHERE task_id = {task_id} "
+            f"AND user_id = {current_user.id}"
+        ))
+        # Clear timer
+    else:
+        task.status = TaskStatus.available
+        task.assigned_to = None
+
     log = TaskActivityLog(
         task_id=task_id,
         user_id=current_user.id,
@@ -330,6 +509,11 @@ async def reset_task(
         raise HTTPException(404, "Task not found")
     task.status = TaskStatus.available
     task.assigned_to = None
+    # Reset all assignments for this task
+    db.execute(text(
+        f"UPDATE task_assignments SET status = 'pending' "
+        f"WHERE task_id = {task_id}"
+    ))
     db.commit()
     return {"message": "Task reset to available"}
 
